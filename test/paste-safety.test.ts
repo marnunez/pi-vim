@@ -25,10 +25,10 @@ function paste(editor: ModalEditor, text: string): void {
 function assertExpanded(
   editor: ModalEditor,
   expected: string,
-  cursor = editor.getCursor(),
+  cursor?: ReturnType<ModalEditor["getCursor"]>,
 ): void {
   assert.equal(editor.getExpandedText(), expected);
-  assert.deepEqual(editor.getCursor(), cursor);
+  if (cursor) assert.deepEqual(editor.getCursor(), cursor);
   assert.equal(editor.getMode(), "normal");
 }
 

@@ -12,6 +12,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, visibleWidth } from "@earendil-works/pi-tui";
 import {
   buildClipboardReadHelperSource,
@@ -3469,11 +3470,16 @@ describe("cursor shape rendering", () => {
     assert.deepEqual(tui.terminalWrites, [INSERT_CURSOR_SHAPE]);
   });
 
-  it("keeps the software cursor when focused render has no cursor marker", () => {
+  it("keeps the software cursor when focused render has no cursor marker", (t) => {
     const tui = createCursorShapeTui({ initialShowHardwareCursor: true });
     const editor = new ModalEditor(tui, stubTheme, stubKeybindings);
-    const internal = editor as unknown as { autocompleteState?: string | null };
-    internal.autocompleteState = "regular";
+    // Recent Pi versions keep the marker during autocomplete for IME support.
+    // Simulate the actual condition under test, not the old host's menu policy.
+    t.mock.method(CustomEditor.prototype, "render", () => [
+      "─".repeat(20),
+      SOFTWARE_CURSOR_SPACE,
+      "─".repeat(20),
+    ]);
     focusEditor(editor);
 
     const lines = editor.render(20);

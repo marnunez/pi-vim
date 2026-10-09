@@ -247,8 +247,8 @@ const THRESHOLDS = {
   // 17.
   // Fork correctness fixes: paste-aware snapshots/cancellation, word operator
   // semantics, grapheme-safe horizontal ranges, and Git-install README guidance.
-  // Measured packed 58576 -> 60660 B, unpacked 231210 -> 238560 B; still 17
-  // shipped files and no new runtime dependencies. Keep ~340 B / ~940 B spare.
+  // Measured packed 58576 -> 60736 B, unpacked 231210 -> 238756 B; still 17
+  // shipped files and no new runtime dependencies. Keep ~264 B / ~744 B spare.
   maxFiles: 17,
   maxSize: 61000,
   maxUnpackedSize: 239500,

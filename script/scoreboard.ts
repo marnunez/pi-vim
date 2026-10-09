@@ -435,10 +435,13 @@ function renderParitySection(suites: ParitySuite[]): string[] {
   lines.push("");
   lines.push(
     ...paragraph(`
-      Each case drives headless nvim and pi-vim through the same keystrokes from
-      the same buffer, then compares text, cursor, mode, and the unnamed
-      register. A row's skips are documented divergences, listed in full below —
-      never silently-passing tests.
+      Motion and editing cases drive headless nvim and pi-vim through the same
+      keystrokes from the same buffer, then compare text, cursor, mode, and the
+      unnamed register. Collapsed-paste cases compare expanded payloads, mode,
+      and register instead: Pi displays a marker where nvim displays the text,
+      so visible cursor coordinates intentionally differ. A row's skips are
+      documented divergences, listed in full below — never silently-passing
+      tests.
     `),
   );
 

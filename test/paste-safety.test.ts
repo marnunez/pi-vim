@@ -74,6 +74,37 @@ describe("collapsed paste snapshot safety", () => {
     assertExpanded(editor, `${CHAR_PAYLOAD} ${secondPayload}`);
   });
 
+  it("cancelled incomplete paste keeps completed payloads recoverable after Backspace", () => {
+    const editor = createEditor();
+    paste(editor, CHAR_PAYLOAD);
+    sendKeys(editor, ["\x1b[200~unfinished", "\x1b", "A"]);
+    const beforeDeletionCursor = editor.getCursor();
+    sendKeys(editor, ["\x7f", "\x1b"]);
+    assertExpanded(editor, "", { line: 0, col: 0 });
+    sendKeys(editor, ["u"]);
+    assertExpanded(editor, CHAR_PAYLOAD, beforeDeletionCursor);
+    sendKeys(editor, ["\x12"]);
+    assertExpanded(editor, "", { line: 0, col: 0 });
+    sendKeys(editor, ["u"]);
+    assertExpanded(editor, CHAR_PAYLOAD, beforeDeletionCursor);
+  });
+
+  it("cancelled incomplete paste cannot reuse a completed paste ID", () => {
+    const editor = createEditor();
+    paste(editor, CHAR_PAYLOAD);
+    sendKeys(editor, ["\x1b[200~unfinished", "\x1b", "A", " "]);
+    const secondPayload = "second ".repeat(160);
+    paste(editor, secondPayload);
+    sendKeys(editor, ["\x1b"]);
+    assert.match(editor.getText(), /\[paste #1 /);
+    assert.match(editor.getText(), /\[paste #2 /);
+    assertExpanded(editor, `${CHAR_PAYLOAD} ${secondPayload}`);
+    sendKeys(editor, ["u"]);
+    assertExpanded(editor, CHAR_PAYLOAD);
+    sendKeys(editor, ["\x12"]);
+    assertExpanded(editor, `${CHAR_PAYLOAD} ${secondPayload}`);
+  });
+
   it("motion and counted exhausted history preserve the redo payload", () => {
     const editor = createEditor();
     paste(editor, CHAR_PAYLOAD);

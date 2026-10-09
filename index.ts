@@ -1469,7 +1469,6 @@ export class ModalEditor extends CustomEditor {
     const editor = this as unknown as {
       isInPaste?: boolean;
       pasteBuffer?: string;
-      pasteCounter?: number;
     };
 
     if (!editor.isInPaste) return;
@@ -1478,9 +1477,8 @@ export class ModalEditor extends CustomEditor {
     if (typeof editor.pasteBuffer === "string") {
       editor.pasteBuffer = "";
     }
-    if (typeof editor.pasteCounter === "number") {
-      editor.pasteCounter = 0;
-    }
+    // Completed paste IDs still belong to the draft. Cancelling a pending
+    // payload must not reset their counter or allow the next paste to reuse IDs.
   }
 
   private handleEscape(): void {

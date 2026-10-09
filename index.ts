@@ -1953,6 +1953,7 @@ export class ModalEditor extends CustomEditor {
 
   private handlePendingDelete(data: string): void {
     if (this.opDigit(data)) return;
+    if (this.applyHorizontalOperator(data, "d")) return;
 
     if (data === "%") {
       this.applyPercentOp();
@@ -2049,6 +2050,7 @@ export class ModalEditor extends CustomEditor {
 
   private handlePendingChange(data: string): void {
     if (this.opDigit(data)) return;
+    if (this.applyHorizontalOperator(data, "c")) return;
 
     if (data === "%") {
       this.applyPercentOp();
@@ -2134,9 +2136,10 @@ export class ModalEditor extends CustomEditor {
 
     const motionCount = supportsCountedWordMotion ? this.takeTotalCount(1) : 1;
     if (supportsIgnoredCountMotion) this.takeTotalCount(1);
-    const effectiveMotion =
-      data === "W" && this.isCursorOnNonWhitespace() ? "E" : data;
-    if (this.deleteWithMotion(effectiveMotion, motionCount)) {
+    const changeWord =
+      (data === "w" || data === "W") && this.isCursorOnNonWhitespace();
+    const effectiveMotion = changeWord ? (data === "w" ? "e" : "E") : data;
+    if (this.deleteWithMotion(effectiveMotion, motionCount, changeWord)) {
       this.pendingOperator = null;
       this.setMode();
       return;
@@ -2455,10 +2458,8 @@ export class ModalEditor extends CustomEditor {
             data === "h" ? graphemeIndex : graphemes.length - graphemeIndex;
           const steps = Math.min(clamped, availableSteps);
           this.moveCursorBy(data === "h" ? -steps : steps);
-        } else if (data === "h") {
-          this.moveCursorBy(-clamped);
-        } else if (data === "l") {
-          this.moveCursorBy(clamped);
+        } else if (data === "h" || data === "l") {
+          this.moveCursorToCol(this.horizontalMotionTarget(data, clamped));
         } else {
           const delta = data === "j" ? clamped : -clamped;
           this.moveCursorVertically(delta);
@@ -2720,6 +2721,14 @@ export class ModalEditor extends CustomEditor {
       case "X":
         this.cutCharsBeforeCursor();
         break;
+      case "h":
+      case "l":
+        if (isVisualMode(this.mode)) {
+          if (seq) super.handleInput(seq);
+        } else {
+          this.moveCursorToCol(this.horizontalMotionTarget(key, 1));
+        }
+        break;
       case "j":
         this.moveCursorVertically(1);
         break;
@@ -2799,6 +2808,53 @@ export class ModalEditor extends CustomEditor {
     state.cursorCol = target;
     editor.preferredVisualCol = target;
     editor.tui?.requestRender?.();
+    return true;
+  }
+
+  // Operators may use the exclusive boundary after the last grapheme;
+  // Normal movement must stay on a character of this logical line.
+  private horizontalMotionTarget(
+    motion: "h" | "l",
+    count: number,
+    operator: boolean = false,
+  ): number {
+    const { line, col } = this.getCurrentLineAndCol();
+    const graphemes = getLineGraphemes(line);
+    const index = graphemes.findIndex(({ end }) => col < end);
+    const current = index === -1 ? graphemes.length : index;
+    const limit = operator
+      ? graphemes.length
+      : Math.max(0, graphemes.length - 1);
+    const steps = Math.max(1, Math.min(MAX_COUNT, count));
+    const target = Math.max(
+      0,
+      Math.min(limit, current + (motion === "h" ? -steps : steps)),
+    );
+    return graphemes[target]?.start ?? (operator ? line.length : 0);
+  }
+
+  private applyHorizontalOperator(data: string, op: "d" | "c" | "y"): boolean {
+    if (data !== "h" && data !== "l") return false;
+    const cursor = this.getCursor();
+    const target = this.horizontalMotionTarget(
+      data,
+      this.takeTotalCount(1),
+      true,
+    );
+    this.pendingOperator = null;
+    if (op === "y") {
+      if (cursor.col === target) this.writeToRegister("", "yank");
+      else this.yankRange(cursor.col, target, false);
+      this.moveCursorToCol(Math.min(cursor.col, target));
+    } else {
+      this.deleteRange(cursor.col, target, false);
+      if (op === "c") this.setMode();
+      else
+        this.moveCursorAfterDeleteToLineEnd(
+          cursor.line,
+          Math.min(cursor.col, target),
+        );
+    }
     return true;
   }
 
@@ -3072,6 +3128,8 @@ export class ModalEditor extends CustomEditor {
     target: "start" | "end",
     count: number = 1,
     semanticClass: WordMotionClass = "word",
+    trimTerminalNewline: boolean = false,
+    includeCurrentWordEnd: boolean = false,
   ): number {
     const len = text.length;
     if (len === 0) return 0;
@@ -3097,10 +3155,20 @@ export class ModalEditor extends CustomEditor {
           while (
             next < len &&
             this.charType(text[next], semanticClass) === "space"
-          )
+          ) {
+            // Empty lines are word-motion stops, even when an operator
+            // will trim the final step back to the preceding line's EOL.
+            if (
+              trimTerminalNewline &&
+              next > i &&
+              text[next] === "\n" &&
+              text[next - 1] === "\n"
+            )
+              break;
             next++;
+          }
         } else {
-          if (next < len - 1) next++;
+          if (next < len - 1 && !(includeCurrentWordEnd && step === 0)) next++;
           while (
             next < len &&
             this.charType(text[next], semanticClass) === "space"
@@ -3127,6 +3195,12 @@ export class ModalEditor extends CustomEditor {
           next--;
       }
 
+      // For an operator's final w/W step, the last word of a nonempty
+      // line ends at EOL, not at the next line's first word (:help w).
+      if (trimTerminalNewline && step === steps - 1 && text[i] !== "\n") {
+        const newline = text.indexOf("\n", i);
+        if (newline !== -1 && next > newline) next = newline;
+      }
       if (next === i) break;
       i = next;
     }
@@ -3228,6 +3302,7 @@ export class ModalEditor extends CustomEditor {
     motion: "w" | "e" | "b",
     count: number = 1,
     semanticClass: WordMotionClass = "word",
+    includeCurrentWordEnd: boolean = false,
   ): { col: number; targetCol: number; inclusive: boolean } | null {
     const cursor = this.getCursor();
     const lineIndex = cursor.line;
@@ -3240,16 +3315,28 @@ export class ModalEditor extends CustomEditor {
 
     let currentCol = col;
     for (let step = 0; step < steps; step++) {
-      const nextCol = this.tryFindWordTargetInLine(
-        lineSnapshot,
-        currentCol,
-        direction,
-        target,
-        motion === "e",
-        semanticClass,
-      );
+      const keepCurrentEnd =
+        includeCurrentWordEnd &&
+        step === 0 &&
+        this.charType(lineSnapshot[currentCol], semanticClass) !==
+          this.charType(lineSnapshot[currentCol + 1], semanticClass);
+      const nextCol = keepCurrentEnd
+        ? currentCol
+        : this.tryFindWordTargetInLine(
+            lineSnapshot,
+            currentCol,
+            direction,
+            target,
+            motion === "e",
+            semanticClass,
+          );
       if (nextCol === null) return null;
-      if (nextCol === currentCol && step < steps - 1) return null;
+      if (
+        !keepCurrentEnd &&
+        nextCol === currentCol &&
+        (step < steps - 1 || (includeCurrentWordEnd && step > 0))
+      )
+        return null;
       currentCol = nextCol;
     }
 
@@ -3527,7 +3614,11 @@ export class ModalEditor extends CustomEditor {
     this.yankLineRange(this.getCursor().line, this.getLines().length - 1);
   }
 
-  private deleteWithMotion(motion: string, count: number = 1): boolean {
+  private deleteWithMotion(
+    motion: string,
+    count: number = 1,
+    includeCurrentWordEnd: boolean = false,
+  ): boolean {
     const cursor = this.getCursor();
     const col = cursor.col;
 
@@ -3556,6 +3647,7 @@ export class ModalEditor extends CustomEditor {
         wordMotion.motion,
         count,
         wordMotion.semanticClass,
+        includeCurrentWordEnd,
       );
       if (lineLocalRange) {
         this.deleteRange(
@@ -3563,6 +3655,9 @@ export class ModalEditor extends CustomEditor {
           lineLocalRange.targetCol,
           lineLocalRange.inclusive,
         );
+        if (this.pendingOperator === "d" && wordMotion.motion === "w") {
+          this.moveCursorAfterDeleteToLineEnd(cursor.line, col);
+        }
         return true;
       }
 
@@ -3575,12 +3670,17 @@ export class ModalEditor extends CustomEditor {
         wordMotion.motion === "e" ? "end" : "start",
         count,
         wordMotion.semanticClass,
+        wordMotion.motion === "w",
+        includeCurrentWordEnd,
       );
       this.deleteRangeByAbsolute(
         currentAbs,
         targetAbs,
         wordMotion.motion === "e",
       );
+      if (this.pendingOperator === "d" && wordMotion.motion === "w") {
+        this.moveCursorAfterDeleteToLineEnd(cursor.line, col);
+      }
       return true;
     }
 
@@ -3697,6 +3797,7 @@ export class ModalEditor extends CustomEditor {
 
   private handlePendingYank(data: string): void {
     if (this.opDigit(data)) return;
+    if (this.applyHorizontalOperator(data, "y")) return;
 
     if (data === "%") {
       this.applyPercentOp();
@@ -3805,6 +3906,7 @@ export class ModalEditor extends CustomEditor {
         wordMotion.motion === "e" ? "end" : "start",
         1,
         wordMotion.semanticClass,
+        wordMotion.motion === "w",
       );
       this.yankRangeByAbsolute(
         currentAbs,

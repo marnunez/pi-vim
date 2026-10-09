@@ -228,12 +228,12 @@ describe("dot repeat review regressions", () => {
   it("records identity text changes as the latest repeatable command", () => {
     const { editor } = createEditorWithSpy("Xfoo bar");
 
-    sendKeys(editor, ["x", "0", "c", "w", "f", "o", "o", " ", ESC]);
+    sendKeys(editor, ["x", "0", "c", "w", "f", "o", "o", ESC]);
     assert.equal(editor.getText(), "foo bar");
 
     sendKeys(editor, ["w", "."]);
 
-    assert.equal(editor.getText(), "foo foo ");
+    assert.equal(editor.getText(), "foo foo");
   });
 
   it("repeats multiline O inserts in original line groups", () => {

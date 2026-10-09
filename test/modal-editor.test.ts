@@ -4923,8 +4923,8 @@ describe("change operator — cw / ce / cb / c$ / c0 / cc", () => {
   it("cw: text mutated, register written, insert mode", () => {
     const { editor } = createEditorWithSpy("hello world");
     sendKeys(editor, ["c", "w"]);
-    assert.equal(editor.getRegister(), "hello ");
-    assert.equal(editor.getText(), "world");
+    assert.equal(editor.getRegister(), "hello");
+    assert.equal(editor.getText(), " world");
     assert.equal(editor.getMode(), "insert");
   });
 
@@ -6503,7 +6503,7 @@ describe("Universal Counts: Change and Nav", () => {
 
     sendKeys(editor, ["c", "2", "w"]);
 
-    assert.equal(editor.getText(), "baz");
+    assert.equal(editor.getText(), " baz");
     assert.equal(editor.getMode(), "insert");
   });
 
@@ -7184,18 +7184,18 @@ describe("cross-line word motions", () => {
     assert.equal(editor.getRegister(), "r");
   });
 
-  it("dw can delete across newline", () => {
+  it("dw leaves the terminal newline intact", () => {
     const { editor } = createMultiLineEditor("foo\nbar");
     sendKeys(editor, ["d", "w"]);
-    assert.equal(editor.getText(), "bar");
-    assert.equal(editor.getRegister(), "foo\n");
+    assert.equal(editor.getText(), "\nbar");
+    assert.equal(editor.getRegister(), "foo");
   });
 
-  it("yw can yank across newline without mutation", () => {
+  it("yw excludes the terminal newline without mutation", () => {
     const { editor } = createMultiLineEditor("foo\nbar");
     const before = editor.getText();
     sendKeys(editor, ["y", "w"]);
-    assert.equal(editor.getRegister(), "foo\n");
+    assert.equal(editor.getRegister(), "foo");
     assert.equal(editor.getText(), before);
   });
 
@@ -7220,11 +7220,11 @@ describe("cross-line word motions", () => {
     assert.equal(editor.getRegister(), "r");
   });
 
-  it("dW crosses newline while cW keeps cE parity", () => {
+  it("dW leaves the terminal newline while cW keeps cE parity", () => {
     const { editor: deleteEditor } = createMultiLineEditor("foo\nbar");
     sendKeys(deleteEditor, ["d", "W"]);
-    assert.equal(deleteEditor.getText(), "bar");
-    assert.equal(deleteEditor.getRegister(), "foo\n");
+    assert.equal(deleteEditor.getText(), "\nbar");
+    assert.equal(deleteEditor.getRegister(), "foo");
 
     const { editor: changeEditor } = createMultiLineEditor("foo\nbar");
     sendKeys(changeEditor, ["c", "W"]);
@@ -7233,11 +7233,11 @@ describe("cross-line word motions", () => {
     assert.equal(changeEditor.getMode(), "insert");
   });
 
-  it("yW can yank across newline without mutation", () => {
+  it("yW excludes the terminal newline without mutation", () => {
     const { editor } = createMultiLineEditor("foo\nbar");
     const before = editor.getText();
     sendKeys(editor, ["y", "W"]);
-    assert.equal(editor.getRegister(), "foo\n");
+    assert.equal(editor.getRegister(), "foo");
     assert.equal(editor.getText(), before);
   });
 });
@@ -7902,9 +7902,9 @@ describe("undo / redo — u / ctrl+r", () => {
     assertRedoRoundTrip({
       initial: "hello world",
       keys: ["c", "w", "Z", "\x1b"],
-      expectedText: "Zworld",
+      expectedText: "Z world",
       expectedCursor: { line: 0, col: 0 },
-      expectedRegister: "hello ",
+      expectedRegister: "hello",
     });
   });
 
@@ -8813,14 +8813,13 @@ describe("undo / redo — u / ctrl+r", () => {
       const { editor } = createEditorWithSpy("foo bar");
       resetUndoHistory(editor);
       sendKeys(editor, ["c", "w", "Z", "\x1b"]);
-      // pi-vim's cw includes the trailing whitespace (documented behavior),
-      // so the whole "foo " is replaced.
-      assert.equal(editor.getText(), "Zbar");
+      // cw changes the word without consuming its following whitespace.
+      assert.equal(editor.getText(), "Z bar");
       const afterChangeCursor = editor.getCursor();
       sendKeys(editor, ["u"]);
       assert.equal(editor.getText(), "foo bar");
       sendKeys(editor, ["\x12"]);
-      assert.equal(editor.getText(), "Zbar");
+      assert.equal(editor.getText(), "Z bar");
       assert.deepEqual(editor.getCursor(), afterChangeCursor);
     });
   });

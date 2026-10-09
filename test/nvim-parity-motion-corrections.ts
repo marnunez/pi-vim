@@ -1,0 +1,151 @@
+import { describe, it } from "node:test";
+import { assertMatchesNvim, type NvimParityCase } from "./nvim-oracle.js";
+
+const cases: NvimParityCase[] = [
+  ...["w", "W"].flatMap((motion) => [
+    {
+      name: `c${motion} preserves the following gap`,
+      initial: { text: "one  two", cursor: { line: 0, col: 0 } },
+      keys: ["c", motion, "X", "\x1b"],
+    },
+    {
+      name: `c${motion} at a word's final character changes only that character`,
+      initial: { text: "one two", cursor: { line: 0, col: 2 } },
+      keys: ["c", motion, "X", "\x1b"],
+    },
+    {
+      name: `2c${motion} on single-character words`,
+      initial: { text: "a b c", cursor: { line: 0, col: 0 } },
+      keys: ["2", "c", motion, "X", "\x1b"],
+    },
+    {
+      name: `2c${motion} crosses the first newline`,
+      initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
+      keys: ["2", "c", motion, "X", "\x1b"],
+    },
+    {
+      name: `c${motion} from whitespace keeps the terminal newline`,
+      initial: { text: "one  \n  two three", cursor: { line: 0, col: 3 } },
+      keys: ["c", motion, "X", "\x1b"],
+    },
+    {
+      name: `d${motion} at the final buffer character clamps the cursor`,
+      initial: { text: "one", cursor: { line: 0, col: 2 } },
+      keys: ["d", motion],
+    },
+    {
+      name: `d${motion} retains the terminal newline`,
+      initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
+      keys: ["d", motion],
+    },
+    {
+      name: `d${motion} at EOL retains the newline and clamps the cursor`,
+      initial: { text: "one\ntwo three", cursor: { line: 0, col: 2 } },
+      keys: ["d", motion],
+    },
+    {
+      name: `d${motion} consumes trailing spaces but not newline or next-line indent`,
+      initial: { text: "one  \n  two three", cursor: { line: 0, col: 0 } },
+      keys: ["d", motion],
+    },
+    {
+      name: `2d${motion} trims only the terminal motion's newline`,
+      initial: { text: "one two\nthree four", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `2d${motion} counts an empty line as a word-motion stop`,
+      initial: { text: "one\n\ntwo three", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `2d${motion} can delete an intermediate newline`,
+      initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `y${motion} excludes the terminal newline too`,
+      initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
+      keys: ["y", motion],
+    },
+  ]),
+  {
+    name: "cw distinguishes punctuation from a keyword",
+    initial: { text: "foo.bar baz", cursor: { line: 0, col: 3 } },
+    keys: ["c", "w", "X", "\x1b"],
+  },
+  {
+    name: "cw handles a non-BMP word without splitting it",
+    initial: { text: "😀 word", cursor: { line: 0, col: 0 } },
+    keys: ["c", "w", "X", "\x1b"],
+  },
+  {
+    name: "$l stays on the final character",
+    initial: { text: "one\ntwo", cursor: { line: 0, col: 0 } },
+    keys: ["$", "l"],
+  },
+  {
+    name: "h at BOL does not cross the newline",
+    initial: { text: "one\ntwo", cursor: { line: 1, col: 0 } },
+    keys: ["h"],
+  },
+  {
+    name: "large l count stays on its logical line and does not leak",
+    initial: { text: "abc\ndef", cursor: { line: 0, col: 0 } },
+    keys: ["9", "9", "9", "l", "h"],
+  },
+  {
+    name: "horizontal motions on an empty line",
+    initial: { text: "one\n\ntwo", cursor: { line: 1, col: 0 } },
+    keys: ["9", "l", "9", "h"],
+  },
+  {
+    name: "horizontal movement respects a combining character",
+    initial: { text: "áb", cursor: { line: 0, col: 0 } },
+    keys: ["l", "h", "x"],
+  },
+  ...["d", "c", "y"].flatMap((op) => [
+    {
+      name: `${op}l at EOL uses the exclusive EOL boundary`,
+      initial: { text: "abc\ndef", cursor: { line: 0, col: 2 } },
+      keys: [op, "l", ...(op === "c" ? ["X", "\x1b"] : [])],
+    },
+    {
+      name: `2${op}3l multiplies counts and clamps before newline`,
+      initial: { text: "abcdefg\nnext", cursor: { line: 0, col: 2 } },
+      keys: ["2", op, "3", "l", ...(op === "c" ? ["X", "\x1b"] : [])],
+    },
+    {
+      name: `${op}9h clamps to BOL`,
+      initial: { text: "abc\ndef", cursor: { line: 0, col: 2 } },
+      keys: [op, "9", "h", ...(op === "c" ? ["X", "\x1b"] : [])],
+    },
+    {
+      name: `${op}h at BOL applies the empty-range register rule`,
+      initial: {
+        text: "abc\ndef",
+        cursor: { line: 0, col: 0 },
+        register: "seed",
+      },
+      keys: [op, "h", ...(op === "c" ? ["X", "\x1b"] : [])],
+    },
+    {
+      name: `${op}l on an empty line applies the empty-range register rule`,
+      initial: { text: "\ndef", cursor: { line: 0, col: 0 }, register: "seed" },
+      keys: [op, "l", ...(op === "c" ? ["X", "\x1b"] : [])],
+    },
+  ]),
+  {
+    name: "yl2p uses a charwise single-character register",
+    initial: { text: "abc", cursor: { line: 0, col: 0 } },
+    keys: ["y", "l", "2", "p"],
+  },
+];
+
+describe("nvim parity motion corrections", () => {
+  for (const testCase of cases) {
+    it(testCase.name, async () => {
+      await assertMatchesNvim(testCase);
+    });
+  }
+});

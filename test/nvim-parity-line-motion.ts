@@ -165,7 +165,6 @@ const LINE_MOTION_PARITY_CASES: NvimParityCase[] = [
 ];
 
 const KNOWN_NVIM_PARITY_GAPS = new Set([
-  "9l: clamps at the final character",
   "gg: moves to the first line with nvim cursor placement",
   "G: moves to the last line with nvim cursor placement",
   "2gg: moves to the counted line with nvim cursor placement",

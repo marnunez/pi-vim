@@ -38,8 +38,8 @@ describe("clipboard mirror policy", () => {
     sendKeys(editor, ["c", "w"]);
     await nextImmediate();
 
-    assert.equal(editor.getRegister(), "foo ");
-    assert.deepEqual(clipboardWrites, ["foo "]);
+    assert.equal(editor.getRegister(), "foo");
+    assert.deepEqual(clipboardWrites, ["foo"]);
   });
 
   it("yank clipboard mirror policy skips delete writes but updates the register", () => {
@@ -58,7 +58,7 @@ describe("clipboard mirror policy", () => {
 
     sendKeys(editor, ["c", "w"]);
 
-    assert.equal(editor.getRegister(), "foo ");
+    assert.equal(editor.getRegister(), "foo");
     assert.deepEqual(clipboardWrites, []);
   });
 
@@ -94,7 +94,7 @@ describe("clipboard mirror policy", () => {
 
     sendKeys(editor, ["c", "w"]);
 
-    assert.equal(editor.getRegister(), "foo ");
+    assert.equal(editor.getRegister(), "foo");
     assert.deepEqual(clipboardWrites, []);
   });
 

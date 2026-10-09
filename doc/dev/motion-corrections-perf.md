@@ -31,18 +31,19 @@ buffer/cursor restoration and clipboard work are outside the measured interval.
 
 | Fixture | Before median µs/command | After median | Before p95 | After p95 |
 | --- | ---: | ---: | ---: | ---: |
-| cw short ASCII | 6.14 | 7.94 | 12.79 | 11.68 |
-| cw 4k ASCII | 10.44 | 250.05 | 11.86 | 269.87 |
-| ce 4k ASCII control | 240.35 | 247.53 | 241.58 | 278.58 |
-| cw Unicode | 4.55 | 7.02 | 5.59 | 7.11 |
-| dw across newline | 3.47 | 3.48 | 4.04 | 4.74 |
-| 2dw terminal newline | 4.73 | 5.04 | 5.22 | 7.05 |
-| dw Unicode/newline | 3.54 | 3.33 | 3.75 | 3.39 |
+| cw short ASCII | 5.60 | 7.98 | 6.94 | 9.50 |
+| cw 4k ASCII | 10.92 | 240.51 | 12.98 | 270.00 |
+| ce 4k ASCII control | 243.41 | 243.33 | 246.02 | 256.23 |
+| cw Unicode | 4.82 | 7.80 | 5.79 | 10.46 |
+| dw across newline | 3.88 | 4.36 | 5.05 | 6.95 |
+| 2dw terminal newline | 5.03 | 5.53 | 7.53 | 7.57 |
+| 2dw whole-line conversion | 4.41 | 4.41 | 4.58 | 4.51 |
+| dw Unicode/newline | 3.77 | 3.87 | 3.96 | 4.07 |
 
 The long-line cw regression is real: the old, incorrect exclusive w path did
 not need inclusive grapheme-end resolution, while corrected cw uses the
 existing inclusive ce machinery. The ce control shows that the corrected cw
-cost matches that existing path (about 0.25 ms for a 4k ASCII word). This is a
+cost matches that existing path (about 0.24 ms for a 4k ASCII word). This is a
 correctness change, not a claimed operator optimization. Avoid introducing a
 new grapheme cache or unrelated fast path in this fix; those need their own
 measurement and invalidation review.

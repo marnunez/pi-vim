@@ -16,6 +16,7 @@ const fixtures = [
   { name: "cw-unicode", text: "é😀 next", keys: ["c", "w"] },
   { name: "dw-newline", text: "one\ntwo three", keys: ["d", "w"] },
   { name: "2dw-newline", text: "one two\nthree four", keys: ["2", "d", "w"] },
+  { name: "2dw-whole-lines", text: "a\nb\nc", keys: ["2", "d", "w"] },
   { name: "dw-unicode", text: "😀\nnext word", keys: ["d", "w"] },
 ];
 const metrics: Record<

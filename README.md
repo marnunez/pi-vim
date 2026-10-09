@@ -15,7 +15,7 @@ Restart Pi after install. Development and compatibility tests pin Pi 0.87.1; the
 ### fork fixes
 
 - Collapsed-paste payloads and IDs survive undo/redo and synchronous or delayed Pi command dispatch; restoring a placeholder alone no longer loses its contents. Cancelling an unfinished paste keeps completed paste IDs intact.
-- `cw`/`cW` preserve following whitespace, terminal `dw`/`yw` word steps preserve the newline, and Normal `h`/`l` stay on graphemes within the logical line. Horizontal motions also compose with `d`/`c`/`y`, including multiplied counts.
+- `cw`/`cW` preserve following whitespace, terminal `dw`/`yw` word steps preserve the newline unless a complete-line delete becomes linewise, and Normal `h`/`l` stay on graphemes within the logical line. Horizontal motions also compose with `d`/`c`/`y`, including multiplied counts.
 - Development dependencies pin Pi 0.87.1; compatibility checks also exercise 0.78.0. Regression tests use real Pi editor classes and curated headless-Neovim comparisons.
 - The editor still relies on private Pi internals. If the paste registry API is missing, undo stops before changing the draft rather than silently dropping a payload. Host upgrades require compatibility testing.
 
@@ -298,7 +298,7 @@ Same motion set as `d`. Writes to register, **no text mutation**.
 | `yi"` / `ya"` (`'`, <code>`</code>) | Inside/around quotes |
 | `yi(` / `ya(`, `yi[` / `ya[`, `yi{` / `ya{` | Inside/around brackets; aliases `)`, `]`, `}`, `b`, `B` |
 
-For `dw`/`dW` and `yw`/`yW`, a final forward word step stops at the current line's end instead of consuming its newline and the next line's indentation. Earlier counted delete steps can cross line boundaries.
+For `dw`/`dW` and `yw`/`yW`, a final forward word step stops at the current line's end instead of consuming its newline and the next line's indentation. Earlier counted delete steps can cross line boundaries. A delete spanning complete lines from at or before the first nonblank becomes linewise, including the final newline; changes remain characterwise.
 
 Counted `word`/`WORD` yank motions and counted yank text objects (`y2w`,
 `2yw`, `y2W`, `2yW`, `y2aw`, `2yaw`, `y2aW`, `y2a{`, …) are intentionally not

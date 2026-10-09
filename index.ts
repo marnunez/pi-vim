@@ -570,13 +570,23 @@ export class ModalEditor extends CustomEditor {
   private captureSnapshot(): EditorSnapshot {
     const cursor = this.getCursor();
     const editor = this as unknown as ModalEditorInternals;
+    const pastes = editor.pastes;
+    const pasteCounter = editor.pasteCounter;
+    if (
+      !(pastes instanceof Map) ||
+      typeof pasteCounter !== "number" ||
+      !Number.isInteger(pasteCounter) ||
+      pasteCounter < 0
+    ) {
+      throw new Error("Snapshot prerequisite: paste registry unavailable");
+    }
     return {
       text: this.getText(),
       cursor: { line: cursor.line, col: cursor.col },
       // Visible paste markers are references, not the original payload. Keep
       // their registry too, without sharing mutable maps with later changes.
-      pastes: new Map(editor.pastes),
-      pasteCounter: editor.pasteCounter ?? 0,
+      pastes: new Map(pastes),
+      pasteCounter,
     };
   }
 

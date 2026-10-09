@@ -152,6 +152,29 @@ describe("collapsed paste snapshot safety", () => {
     assertExpanded(editor, `${CHAR_PAYLOAD} ${latestPayload}`, cursor);
   });
 
+  for (const field of ["pastes", "pasteCounter"]) {
+    it(`fails before undo changes the draft if Pi's ${field} internals disappear`, () => {
+      const editor = createEditor();
+      paste(editor, CHAR_PAYLOAD);
+      sendKeys(editor, ["\x1b"]);
+      const cursor = editor.getCursor();
+      const raw = editor as unknown as Record<string, unknown>;
+      const saved = raw[field];
+      raw[field] = undefined;
+      try {
+        assert.throws(
+          () => sendKeys(editor, ["u"]),
+          /Snapshot prerequisite: paste registry unavailable/,
+        );
+      } finally {
+        raw[field] = saved;
+      }
+      assertExpanded(editor, CHAR_PAYLOAD, cursor);
+      sendKeys(editor, ["u", "\x12"]);
+      assertExpanded(editor, CHAR_PAYLOAD, cursor);
+    });
+  }
+
   it("programmatic text replacement cannot resurrect an old paste via redo", () => {
     const editor = createEditor();
     paste(editor, CHAR_PAYLOAD);

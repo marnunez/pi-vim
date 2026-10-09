@@ -3616,6 +3616,20 @@ export class ModalEditor extends CustomEditor {
     this.yankLineRange(this.getCursor().line, this.getLines().length - 1);
   }
 
+  private tryDeleteWordMotionLinewise(text: string, endAbs: number): boolean {
+    if (endAbs < text.length && text[endAbs] !== "\n") return false;
+    const cursor = this.getCursor();
+    const end = this.getCursorFromAbsoluteIndex(text, endAbs);
+    if (end.line <= cursor.line) return false;
+    const line = this.getLines()[cursor.line] ?? "";
+    if (cursor.col > findFirstNonWhitespaceColumn(line)) return false;
+    // An exclusive word motion spanning complete lines from before the first
+    // nonblank becomes linewise in Vim, including the final separator newline.
+    this.deleteLineRange(cursor.line, end.line);
+    this.moveCursorToFirstNonWhitespace();
+    return true;
+  }
+
   private deleteWithMotion(
     motion: string,
     count: number = 1,
@@ -3675,6 +3689,13 @@ export class ModalEditor extends CustomEditor {
         wordMotion.motion === "w",
         includeCurrentWordEnd,
       );
+      if (
+        this.pendingOperator === "d" &&
+        wordMotion.motion === "w" &&
+        this.tryDeleteWordMotionLinewise(text, targetAbs)
+      ) {
+        return true;
+      }
       this.deleteRangeByAbsolute(
         currentAbs,
         targetAbs,

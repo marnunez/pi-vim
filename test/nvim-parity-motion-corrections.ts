@@ -89,6 +89,31 @@ const cases: NvimParityCase[] = [
       keys: ["2", "d", motion],
     },
     {
+      name: `2d${motion} spanning complete lines becomes linewise`,
+      initial: { text: "a\nb\nc", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `2d${motion} from the first nonblank includes indentation`,
+      initial: { text: "  a\n  b\n  c", cursor: { line: 0, col: 2 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `2d${motion} after the first nonblank stays characterwise`,
+      initial: { text: "prefix a\nb\nc", cursor: { line: 0, col: 7 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `2d${motion} whole-line register puts whole lines`,
+      initial: { text: "a\nb\nc", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion, "p"],
+    },
+    {
+      name: `2d${motion} spanning complete lines at EOF becomes linewise`,
+      initial: { text: "a\nb", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
       name: `y${motion} excludes the terminal newline too`,
       initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
       keys: ["y", motion],

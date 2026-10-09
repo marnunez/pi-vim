@@ -84,6 +84,30 @@ describe("motion correctness regressions", () => {
       assert.equal(editor.getMode(), "normal");
       assert.deepEqual(editor.getCursor(), { line: 0, col: prefix.length });
     });
+    it(`2d${motion} whole-line deletion preserves linewise put and history`, () => {
+      const { editor } = setup("a\nb\ntailword");
+      sendKeys(editor, ["2", "d", motion]);
+      assert.equal(editor.getText(), "tailword");
+      assert.equal(editor.getRegister(), "a\nb\n");
+      assert.equal(editor.getMode(), "normal");
+      assert.deepEqual(editor.getCursor(), { line: 0, col: 0 });
+      sendKeys(editor, ["u"]);
+      assert.equal(editor.getText(), "a\nb\ntailword");
+      sendKeys(editor, ["\x12"]);
+      assert.equal(editor.getText(), "tailword");
+      assert.equal(editor.getRegister(), "a\nb\n");
+      assert.deepEqual(editor.getCursor(), { line: 0, col: 0 });
+      sendKeys(editor, ["l"]);
+      assert.deepEqual(
+        editor.getCursor(),
+        { line: 0, col: 1 },
+        "delete count must not leak",
+      );
+      sendKeys(editor, ["p"]);
+      assert.equal(editor.getText(), "tailword\na\nb");
+      assert.equal(editor.getRegister(), "a\nb\n");
+      assert.deepEqual(editor.getCursor(), { line: 1, col: 0 });
+    });
     it(`2d${motion} keeps intermediate newlines in its register`, () => {
       const { editor } = setup("one\ntwo three");
       sendKeys(editor, ["2", "d", motion]);

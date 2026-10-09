@@ -549,4 +549,6 @@ Hooks install with `npm install` after cloning. To wire them explicitly:
 npm run hooks:install
 ```
 
-Run checks with `npm run check`. `index.ts` handles modal keys; `motions.ts` and `text-objects.ts` hold pure range logic; `types.ts` holds shared types/constants; `test/` uses Node's runner.
+Run checks with `npm run check`. For a compatible older checkout, `npm run test:differential -- /path/to/baseline-checkout` runs the bounded 636-case comparison; see the [probe guide](https://github.com/marnunez/pi-vim/blob/main/doc/dev/differential-probe.md).
+
+`index.ts` handles modal keys; `motions.ts` and `text-objects.ts` hold pure range logic; `types.ts` holds shared types/constants; `test/` uses Node's runner.

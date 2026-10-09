@@ -28,6 +28,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx/esm --test 'test/**/*.test.ts'",
     "test:nvim": "node --import tsx/esm --test 'test/nvim-parity*.ts'",
+    "test:differential": "node --import tsx/esm script/differential-probe.ts",
     "test:e2e": "node --import tsx/esm script/image-attachments-e2e.ts",
     "test:smoke": "node --import tsx/esm script/consumer-smoke.ts",
     "check": "npm run lint && npm run typecheck && npm run test",

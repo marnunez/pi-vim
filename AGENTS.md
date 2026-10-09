@@ -14,4 +14,4 @@ Perf and hot-path changes — pull requests included — must clear the evidence
 
 When reviewing changes — including agent self-review before opening or merging a PR — follow `doc/review-guidelines.md`; its project-specific MUST-flag rules take precedence over general review heuristics.
 
-npm publishing is automated in CI (`.github/workflows/publish.yml`): every push to `main` publishes the `package.json` version if it is not already on npm. Do not run `npm publish` or ask for publish access — to release, bump the version in `package.json`.
+This maintained fork is installed from Git, not published to npm. Keep `package.json` marked `private` and retain the repository guard in `.github/workflows/publish.yml`; the upstream npm package name belongs to lajarre. Do not run `npm publish` or enable npm publishing for this fork. Push tested changes to `main` to make them available to Git installs; CI checks both Pi 0.78.0 and 0.87.1. The optional `npm run test:differential -- /path/to/baseline-checkout` retains the bounded review probe; see `doc/dev/differential-probe.md`.

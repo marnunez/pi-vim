@@ -201,6 +201,8 @@ const EX_BUILTIN_COMMAND_NAMES: ReadonlySet<string> = new Set([
 type EditorSnapshot = {
   text: string;
   cursor: { line: number; col: number };
+  pastes: ReadonlyMap<number, string>;
+  pasteCounter: number;
 };
 
 type CommandDispatchResult = void | PromiseLike<void>;
@@ -235,6 +237,8 @@ type ModalEditorInternals = {
   onChange?: (text: string) => void;
   tui?: { requestRender?: () => void };
   pushUndoSnapshot?: () => void;
+  pastes?: Map<number, string>;
+  pasteCounter?: number;
   setCursorCol?: (col: number) => void;
   undoStack?: { readonly length: number; pop(): unknown; stack: unknown[] };
 };
@@ -565,9 +569,14 @@ export class ModalEditor extends CustomEditor {
 
   private captureSnapshot(): EditorSnapshot {
     const cursor = this.getCursor();
+    const editor = this as unknown as ModalEditorInternals;
     return {
       text: this.getText(),
       cursor: { line: cursor.line, col: cursor.col },
+      // Visible paste markers are references, not the original payload. Keep
+      // their registry too, without sharing mutable maps with later changes.
+      pastes: new Map(editor.pastes),
+      pasteCounter: editor.pasteCounter ?? 0,
     };
   }
 
@@ -593,6 +602,8 @@ export class ModalEditor extends CustomEditor {
 
     const lines = snapshot.text.split("\n");
     state.lines = lines.length > 0 ? lines : [""];
+    editor.pastes = new Map(snapshot.pastes);
+    editor.pasteCounter = snapshot.pasteCounter;
 
     const maxLine = Math.max(0, state.lines.length - 1);
     const cursorLine = Math.max(0, Math.min(snapshot.cursor.line, maxLine));
@@ -619,7 +630,10 @@ export class ModalEditor extends CustomEditor {
     return (
       a.text !== b.text ||
       a.cursor.line !== b.cursor.line ||
-      a.cursor.col !== b.cursor.col
+      a.cursor.col !== b.cursor.col ||
+      a.pasteCounter !== b.pasteCounter ||
+      a.pastes.size !== b.pastes.size ||
+      [...a.pastes].some(([id, text]) => b.pastes.get(id) !== text)
     );
   }
 

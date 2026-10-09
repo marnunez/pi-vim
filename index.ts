@@ -3201,7 +3201,9 @@ export class ModalEditor extends CustomEditor {
         const newline = text.indexOf("\n", i);
         if (newline !== -1 && next > newline) next = newline;
       }
-      if (next === i) break;
+      // cw/cW can consume the current word end without moving on the first
+      // step. That is a counted word, not exhaustion; later steps still run.
+      if (next === i && !(includeCurrentWordEnd && step === 0)) break;
       i = next;
     }
 

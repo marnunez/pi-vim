@@ -24,6 +24,31 @@ const cases: NvimParityCase[] = [
       keys: ["2", "c", motion, "X", "\x1b"],
     },
     {
+      name: `2c${motion} crosses a newline from a single-character word`,
+      initial: { text: "a\nb", cursor: { line: 0, col: 0 } },
+      keys: ["2", "c", motion, "X", "\x1b"],
+    },
+    {
+      name: `c2${motion} crosses a newline from the current word end`,
+      initial: { text: "one\ntwo", cursor: { line: 0, col: 2 } },
+      keys: ["c", "2", motion, "X", "\x1b"],
+    },
+    {
+      name: `3c${motion} clamps at EOF after counting the current word end`,
+      initial: { text: "a b", cursor: { line: 0, col: 0 } },
+      keys: ["3", "c", motion, "X", "\x1b"],
+    },
+    {
+      name: `large c${motion} count clamps across lines and is consumed`,
+      initial: { text: "one\ntwo", cursor: { line: 0, col: 2 } },
+      keys: ["9", "9", "9", "9", "c", motion, "X", "\x1b", "0", "x"],
+    },
+    {
+      name: `2c${motion} continues counting after the first current-end step`,
+      initial: { text: "a\nb\nc", cursor: { line: 0, col: 0 } },
+      keys: ["2", "c", motion, "X", "\x1b"],
+    },
+    {
       name: `c${motion} from whitespace keeps the terminal newline`,
       initial: { text: "one  \n  two three", cursor: { line: 0, col: 3 } },
       keys: ["c", motion, "X", "\x1b"],

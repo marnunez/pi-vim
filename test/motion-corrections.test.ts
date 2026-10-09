@@ -27,6 +27,50 @@ describe("motion correctness regressions", () => {
   });
 
   for (const motion of ["w", "W"]) {
+    for (const fixture of [
+      { text: "a\nb", col: 0, count: 2, register: "a\nb", remaining: "" },
+      {
+        text: "one\ntwo",
+        col: 2,
+        count: 2,
+        register: "e\ntwo",
+        remaining: "on",
+      },
+      { text: "a b", col: 0, count: 3, register: "a b", remaining: "" },
+      {
+        text: "one\ntwo",
+        col: 2,
+        count: 99999,
+        register: "e\ntwo",
+        remaining: "on",
+      },
+      { text: "a\nb\nc", col: 0, count: 2, register: "a\nb", remaining: "\nc" },
+    ]) {
+      it(`counted c${motion} fallback consumes the current end (${JSON.stringify(fixture.text)}, ${fixture.count})`, () => {
+        const { editor } = setup(fixture.text, fixture.col);
+        sendKeys(editor, [...String(fixture.count), "c", motion]);
+        assert.equal(editor.getText(), fixture.remaining);
+        assert.equal(editor.getRegister(), fixture.register);
+        assert.equal(editor.getMode(), "insert");
+        assert.deepEqual(editor.getCursor(), { line: 0, col: fixture.col });
+        sendKeys(editor, ["X", ESC]);
+        const changed = `${fixture.remaining.slice(0, fixture.col)}X${fixture.remaining.slice(fixture.col)}`;
+        assert.equal(editor.getText(), changed);
+        assert.equal(editor.getMode(), "normal");
+        sendKeys(editor, ["u"]);
+        assert.equal(editor.getText(), fixture.text);
+        sendKeys(editor, ["\x12"]);
+        assert.equal(editor.getText(), changed);
+        assert.equal(editor.getRegister(), fixture.register);
+        assert.deepEqual(editor.getCursor(), { line: 0, col: fixture.col });
+        sendKeys(editor, ["0", "x"]);
+        assert.equal(
+          editor.getText(),
+          changed.slice(1),
+          "change count must not leak to x",
+        );
+      });
+    }
     it(`d${motion} trims the terminal newline on a wrapped logical line`, () => {
       const prefix = "x".repeat(160);
       const { editor } = setup(

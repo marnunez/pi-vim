@@ -108,6 +108,37 @@ describe("motion correctness regressions", () => {
       assert.equal(editor.getRegister(), "a\nb\n");
       assert.deepEqual(editor.getCursor(), { line: 1, col: 0 });
     });
+    it(`d${motion} on an empty line excludes the empty EOF endpoint`, () => {
+      const { editor } = setup("a\n\n", 0, 1);
+      sendKeys(editor, ["d", motion]);
+      assert.equal(editor.getText(), "a\n");
+      assert.equal(editor.getRegister(), "\n");
+      assert.equal(editor.getMode(), "normal");
+      assert.deepEqual(editor.getCursor(), { line: 1, col: 0 });
+      sendKeys(editor, ["u"]);
+      assert.equal(editor.getText(), "a\n\n");
+      sendKeys(editor, ["\x12"]);
+      assert.equal(editor.getText(), "a\n");
+      assert.equal(editor.getRegister(), "\n");
+      assert.deepEqual(editor.getCursor(), { line: 1, col: 0 });
+      sendKeys(editor, ["p"]);
+      assert.equal(editor.getText(), "a\n\n");
+      assert.equal(editor.getRegister(), "\n");
+      assert.deepEqual(editor.getCursor(), { line: 2, col: 0 });
+    });
+    it(`3d${motion} exhausted at an empty EOF keeps exactly one separator newline`, () => {
+      const { editor } = setup("a b\n");
+      sendKeys(editor, ["3", "d", motion]);
+      assert.equal(editor.getText(), "");
+      assert.equal(editor.getRegister(), "a b\n");
+      assert.deepEqual(editor.getCursor(), { line: 0, col: 0 });
+      sendKeys(editor, ["u"]);
+      assert.equal(editor.getText(), "a b\n");
+      sendKeys(editor, ["\x12"]);
+      assert.equal(editor.getText(), "");
+      assert.equal(editor.getRegister(), "a b\n");
+      assert.equal(editor.getMode(), "normal");
+    });
     it(`2d${motion} keeps intermediate newlines in its register`, () => {
       const { editor } = setup("one\ntwo three");
       sendKeys(editor, ["2", "d", motion]);

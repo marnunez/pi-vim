@@ -114,6 +114,31 @@ const cases: NvimParityCase[] = [
       keys: ["2", "d", motion],
     },
     {
+      name: `3d${motion} excludes an empty EOF endpoint from its register`,
+      initial: { text: "a b\n", cursor: { line: 0, col: 0 } },
+      keys: ["3", "d", motion],
+    },
+    {
+      name: `d${motion} on an empty line retains the final empty line`,
+      initial: { text: "a\n\n", cursor: { line: 1, col: 0 } },
+      keys: ["d", motion],
+    },
+    {
+      name: `2d${motion} excludes the final empty line`,
+      initial: { text: "a\n\n", cursor: { line: 0, col: 0 } },
+      keys: ["2", "d", motion],
+    },
+    {
+      name: `large d${motion} count on empty lines excludes the EOF endpoint`,
+      initial: { text: "\n\n", cursor: { line: 0, col: 0 } },
+      keys: ["9", "d", motion],
+    },
+    {
+      name: `d${motion} empty-line register puts exactly one line`,
+      initial: { text: "a\n\n", cursor: { line: 1, col: 0 } },
+      keys: ["d", motion, "p"],
+    },
+    {
       name: `y${motion} excludes the terminal newline too`,
       initial: { text: "one\ntwo three", cursor: { line: 0, col: 0 } },
       keys: ["y", motion],

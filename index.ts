@@ -3620,12 +3620,13 @@ export class ModalEditor extends CustomEditor {
     if (endAbs < text.length && text[endAbs] !== "\n") return false;
     const cursor = this.getCursor();
     const end = this.getCursorFromAbsoluteIndex(text, endAbs);
-    if (end.line <= cursor.line) return false;
+    const lastIncludedLine = end.col === 0 ? end.line - 1 : end.line;
+    if (lastIncludedLine <= cursor.line) return false;
     const line = this.getLines()[cursor.line] ?? "";
     if (cursor.col > findFirstNonWhitespaceColumn(line)) return false;
     // An exclusive word motion spanning complete lines from before the first
     // nonblank becomes linewise in Vim, including the final separator newline.
-    this.deleteLineRange(cursor.line, end.line);
+    this.deleteLineRange(cursor.line, lastIncludedLine);
     this.moveCursorToFirstNonWhitespace();
     return true;
   }

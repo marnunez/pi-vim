@@ -2,11 +2,24 @@
 
 Vim in Pi's prompt. Draft in INSERT, edit in NORMAL, select in VISUAL — and run `:!git status` from the middle of a prompt without losing a word of your draft.
 
+This is a Git-installed fork of [lajarre/pi-vim](https://github.com/lajarre/pi-vim), based on upstream 0.14.2. Install this fork rather than the upstream npm package:
+
 ```bash
-pi install npm:pi-vim
+pi install git:git@github.com:marnunez/pi-vim
 ```
 
-Restart Pi after install; requires `@earendil-works/pi-tui >= 0.74.0`.
+Load only one Vim editor extension: remove or disable `@sysid/pi-vim`, upstream `pi-vim`, or any other replacement editor before switching. If Pi packages are managed declaratively (for example through Nix), change the package source there instead of editing generated settings.
+
+Restart Pi after install. Development and compatibility tests pin Pi 0.87.1; the existing `@earendil-works/pi-tui >= 0.74.0` peer range remains unchanged. This fork is marked `private` in `package.json` to prevent npm publication; that does not prevent Git installation.
+
+### fork fixes
+
+- Collapsed-paste payloads and IDs survive undo/redo and synchronous or delayed Pi command dispatch; restoring a placeholder alone no longer loses its contents. Cancelling an unfinished paste keeps completed paste IDs intact.
+- `cw`/`cW` preserve following whitespace, terminal `dw`/`yw` word steps preserve the newline, and Normal `h`/`l` stay on graphemes within the logical line. Horizontal motions also compose with `d`/`c`/`y`, including multiplied counts.
+- Development dependencies pin Pi 0.87.1; compatibility checks also exercise 0.78.0. Regression tests use real Pi editor classes and curated headless-Neovim comparisons.
+- The editor still relies on private Pi internals. If the paste registry API is missing, undo stops before changing the draft rather than silently dropping a payload. Host upgrades require compatibility testing.
+
+The remaining upstream feature limits below still apply; this is not full Vim.
 
 [quickstart](#30-second-quickstart) · [key reference](#full-reference) · [settings](#settings-reference) · [limits](#limits-and-vim-differences)
 
@@ -145,7 +158,7 @@ Most navigation keys accept a `{count}` prefix (max: `9999`); `%` intentionally 
 
 | key | action |
 |---|---|
-| `h` / `l` / `j` / `k`; `{count}h/l/j/k` | Move left/right/down/up; line moves clamp to the buffer |
+| `h` / `l` / `j` / `k`; `{count}h/l/j/k` | Move left/right/down/up; Normal horizontal moves clamp to the logical line's graphemes, vertical moves to the buffer |
 | `0` / `^` / `_` / `$` | Line start / first non-whitespace / counted first non-whitespace / line end |
 | `gg` / `G`; `{count}gg` / `{count}G` | Buffer start/end or absolute 1-indexed line |
 | `gM`; `{count}gM` | Halfway the text of the line; a count of `1`-`100` moves to that percentage of it (higher counts mean halfway, per nvim); text is measured in graphemes, not screen cells |
@@ -212,6 +225,7 @@ word, WORD, char-find, and linewise motions; the counts multiply and clamp at
 | command | deletes |
 |---|---|
 | `dw` / `de` / `db`; `dW` / `dE` / `dB` | word/WORD motion ranges; `{count}` repeats |
+| `dh` / `dl`; `{count}d{count}h/l` | Characterwise backward/forward grapheme ranges; counts multiply, clamping at the logical line boundary |
 | `d$` / `d0` / `d^`; `{count}d$` | To EOL / BOL / first non-whitespace; a counted `$` spans down through that many line ends |
 | `d_` / `dd`; `d{count}_` / `{count}dd` | Current or counted whole lines |
 | `d{count}j` / `d{count}k` / `dG` | Linewise down/up/to EOF |
@@ -225,12 +239,14 @@ word, WORD, char-find, and linewise motions; the counts multiply and clamp at
 #### change `c{motion}` / `cc`
 
 Deletes text then enters Insert mode. `c` supports `%`, `_`, char-find,
-word/WORD, text-object, and `0` / `^` / `$` motions (counted `c$` spans line
+word/WORD, text-object, and `h` / `l` / `0` / `^` / `$` motions (counted `c$` spans line
 ends like `d$`). `j`, `k`, `G`, and counted `cc` are unsupported and cancel.
+On a non-whitespace character, `cw`/`cW` act like `ce`/`cE`, preserving following whitespace; on whitespace they use the next word/WORD start.
 
 | command | action |
 |---|---|
 | `cw` / `ce` / `cb`; `cW` / `cE` / `cB` | Change word/WORD motion ranges + Insert |
+| `ch` / `cl`; `{count}c{count}h/l` | Change a backward/forward grapheme range + Insert; counts multiply within the logical line |
 | `c{count}w/e/b`; `c{count}W/E/B` | Change counted word/WORD motions + Insert |
 | `ciw` / `caw`; `ciW` / `caW` | Change word/WORD text objects + Insert |
 | `c{count}iw` / `c{count}iW`; `c{count}aw` / `c{count}aW` | Change counted word/WORD text objects + Insert |
@@ -275,11 +291,14 @@ Same motion set as `d`. Writes to register, **no text mutation**.
 | `yy` / `Y`; `{count}yy` / `{count}Y` | Whole line(s) + trailing `\n` |
 | `y{count}j` / `y{count}k` / `yG`; `y_` / `y{count}_` | Linewise ranges |
 | `yw` / `ye` / `yb`; `yW` / `yE` / `yB` | word/WORD motion ranges |
+| `yh` / `yl`; `{count}y{count}h/l` | Characterwise backward/forward grapheme ranges; counts multiply within the logical line |
 | `y$` / `y0` / `y^`; `yf{c}` | EOL / BOL / first non-whitespace / char-find |
 | `y%` | Inclusive range through the matching pair target |
 | `yiw` / `yaw`; `yiW` / `yaW` | Inner/around word or WORD |
 | `yi"` / `ya"` (`'`, <code>`</code>) | Inside/around quotes |
 | `yi(` / `ya(`, `yi[` / `ya[`, `yi{` / `ya{` | Inside/around brackets; aliases `)`, `]`, `}`, `b`, `B` |
+
+For `dw`/`dW` and `yw`/`yW`, a final forward word step stops at the current line's end instead of consuming its newline and the next line's indentation. Earlier counted delete steps can cross line boundaries.
 
 Counted `word`/`WORD` yank motions and counted yank text objects (`y2w`,
 `2yw`, `y2W`, `2yW`, `y2aw`, `2yaw`, `y2aW`, `y2a{`, …) are intentionally not

@@ -7,6 +7,8 @@ on:
 
 jobs:
   publish:
+    # This Git-installed fork must never publish upstream's npm package name.
+    if: github.repository == 'lajarre/pi-vim'
     runs-on: ubuntu-latest
     permissions:
       contents: read

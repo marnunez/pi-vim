@@ -7,6 +7,9 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pi: ["0.78.0", "0.87.1"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,6 +17,8 @@ jobs:
           node-version: 22
       - run: sudo apt-get update && sudo apt-get install -y neovim
       - run: npm ci
+      - name: Test against the selected Pi version
+        run: npm install --no-save --ignore-scripts @earendil-works/pi-coding-agent@${{ matrix.pi }} @earendil-works/pi-tui@${{ matrix.pi }}
       - run: npm run check
       - run: npm run test:nvim
       - run: npm run pack:check

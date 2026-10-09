@@ -245,9 +245,13 @@ const THRESHOLDS = {
   // runtime. Measured packed 58644 B, unpacked 231210 B. Budgets bumped 58500 ->
   // 59000 and 229600 -> 231400, leaving ~356 B / ~190 B headroom. Files stay at
   // 17.
+  // Fork correctness fixes: paste-aware snapshots/cancellation, word operator
+  // semantics, grapheme-safe horizontal ranges, and Git-install README guidance.
+  // Measured packed 58576 -> 60660 B, unpacked 231210 -> 238560 B; still 17
+  // shipped files and no new runtime dependencies. Keep ~340 B / ~940 B spare.
   maxFiles: 17,
-  maxSize: 59000,
-  maxUnpackedSize: 231400,
+  maxSize: 61000,
+  maxUnpackedSize: 239500,
 } as const;
 
 function compareStrings(a: string, b: string): number {

@@ -1,6 +1,7 @@
 {
   "name": "pi-vim",
-  "version": "0.14.2",
+  "version": "0.14.3-marnunez.1",
+  "private": true,
   "description": "Vim-style modal editing for Pi's TUI editor",
   "type": "module",
   "keywords": [
@@ -12,7 +13,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lajarre/pi-vim.git"
+    "url": "git+https://github.com/marnunez/pi-vim.git"
   },
   "files": [
     "*.ts",

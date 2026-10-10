@@ -37,6 +37,7 @@ const REQUIRED_FILES = [
   "settings.ts",
   "types.ts",
   "word-boundary-cache.ts",
+  "visual-selection-render.ts",
 ] as const;
 
 const FORBIDDEN_GLOBS = [
@@ -249,9 +250,13 @@ const THRESHOLDS = {
   // semantics, grapheme-safe horizontal ranges, and Git-install README guidance.
   // Measured packed 58576 -> 61130 B, unpacked 231210 -> 240220 B; still 17
   // shipped files and no new runtime dependencies. Keep ~370 B / ~280 B spare.
-  maxFiles: 17,
-  maxSize: 61500,
-  maxUnpackedSize: 240500,
+  // Visual selection painting: one new runtime helper, range-aligned grapheme
+  // geometry, ANSI state composition, and updated README. No dependencies.
+  // Measured 61130 -> 64634 B packed, 240220 -> 251191 B unpacked, 17 -> 18
+  // files. Leave ~366 B / ~809 B spare; tests, benchmarks and docs are excluded.
+  maxFiles: 18,
+  maxSize: 65000,
+  maxUnpackedSize: 252000,
 } as const;
 
 function compareStrings(a: string, b: string): number {

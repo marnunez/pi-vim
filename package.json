@@ -1,6 +1,6 @@
 {
   "name": "pi-vim",
-  "version": "0.14.3-marnunez.1",
+  "version": "0.14.3-marnunez.2",
   "private": true,
   "description": "Vim-style modal editing for Pi's TUI editor",
   "type": "module",

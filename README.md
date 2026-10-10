@@ -14,6 +14,7 @@ Restart Pi after install. Development and compatibility tests pin Pi 0.87.1; the
 
 ### fork fixes
 
+- Visual and V-LINE selections are visibly highlighted, including wrapped, scrolled, empty and Unicode rows. Selection rendering leaves editing and paste state unchanged.
 - Collapsed-paste payloads and IDs survive undo/redo and synchronous or delayed Pi command dispatch; restoring a placeholder alone no longer loses its contents. Cancelling an unfinished paste keeps completed paste IDs intact.
 - `cw`/`cW` preserve following whitespace, terminal `dw`/`yw` word steps preserve the newline unless a complete-line delete becomes linewise, and Normal `h`/`l` stay on graphemes within the logical line. Horizontal motions also compose with `d`/`c`/`y`, including multiplied counts.
 - Development dependencies pin Pi 0.87.1; compatibility checks also exercise 0.78.0. Regression tests use real Pi editor classes and curated headless-Neovim comparisons.
@@ -359,7 +360,11 @@ Typing done in an implicit insert session is repeatable too: the prompt opens in
 | `Y` | Yank every touched line |
 | `C` / `S` | Replace every touched line with one empty line and enter Insert mode |
 
-**The selection is not highlighted.** The footer reads ` VISUAL ` or ` V-LINE ` and the block cursor marks the moving end, but the span between the anchor and the cursor renders as ordinary text. Selection highlighting needs a render-layer change and is deferred.
+**The selection is highlighted in reverse video.** The footer reads ` VISUAL ` or ` V-LINE ` and the block cursor marks the moving end. Character-wise highlighting includes both endpoints; V-LINE highlights whole content rows, including blanks, but excludes borders and horizontal padding. The highlight follows wrapped rows and scrolling, and clears when you exit Visual mode.
+
+For example, `Esc V j y` copies the current line and the next one; `Esc v e y` copies through the end of the current word. Clipboard mirroring still follows `piVim.clipboardMirror`.
+
+Rendering uses the host's actual wrapped layout, validated on Pi 0.78.0 and 0.87.1; an incompatible private layout produces a clear error rather than marking the wrong range. Collapsed paste contents remain collapsed, and painting follows the same visible-character range as the visual operators.
 
 Line-wise selections put a trailing newline in the register, so a following `p` pastes whole lines. A count typed before `v` or `V` is discarded rather than sizing the selection (`2v` behaves as `v`).
 
@@ -501,7 +506,7 @@ pi-vim does not bundle any such tool and does not care which one you use — any
 | Line-wise put onto an all-whitespace first line | Lands at col 0 (shares the `^`/`I` all-whitespace behavior) | `^` lands on the last char of the line |
 | Undo / redo | Vim-change-scoped: one `u` reverts one whole vim change (insert session or change command), one `<C-r>` redoes it, and `.` is its own unit; a linear undo/redo list, no undo tree | Full per-change undo tree with `g+`/`g-`/`:earlier` time-travel |
 | Visual mode | `v` and `V` with `d`/`x`, `y`, `c`/`s` and the line-forcing `D`/`X`/`Y`/`C`/`S`; no `<C-v>`, no visual `p`/`r`/`J`/`~`/`>`/`<`/`gv`, no text objects, no `{count}v` | `v`, `V`, `<C-v>` with the full operator set |
-| Visual selection rendering | No highlight; only the footer label and the block cursor mark the selection | Selection is highlighted |
+| Visual selection rendering | Reverse-video highlight follows host wrapping and viewport | Selection is highlighted |
 | Visual line-wise delete | Leaves the cursor at column 0, like `dd` does today | Preserves the cursor column |
 | Visual dot-repeat | A visual edit clears the repeatable command; `.` afterwards does nothing | `.` repeats the operator over an equally sized region |
 | Text objects | `iw` / `aw`, `iW` / `aW`, quote objects, and paren/bracket/brace objects; delimited counts cancel | Full text-object set |

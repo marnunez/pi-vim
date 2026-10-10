@@ -468,6 +468,28 @@ describe("ANSI selection composition", () => {
     assert.equal(cells(`${painted}Z`).at(-1)?.inverse, false);
   });
 
+  it("ends selection inverse across foreground, bold, and extended-color boundaries", () => {
+    for (const style of [
+      "\x1b[31m",
+      "\x1b[1m",
+      "\x1b[38;5;7m",
+      "\x1b[48;2;7;0;27m",
+      "\x1b[38:2::7:0:27m",
+    ]) {
+      const source = `a${style}b${style}c`;
+      for (const [from, to, expected] of [
+        [0, 1, [0]],
+        [1, 2, [1]],
+        [0, 2, [0, 1]],
+      ] as const) {
+        const painted = highlightCells(source, from, to);
+        expectSelection(painted, [...expected]);
+        assert.equal(plain(painted), "abc");
+        assert.equal(cells(`${painted}Z`).at(-1)?.inverse, false);
+      }
+    }
+  });
+
   it("restores a host inverse style outside the selection and ignores color payloads", () => {
     const source = "\x1b[7mab\x1b[27m\x1b[38;5;7mc\x1b[48;2;7;0;27md\x1b[0me";
     const painted = highlightCells(source, 2, 4);

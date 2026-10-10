@@ -232,16 +232,19 @@ export function highlightCells(text: string, from: number, to: number): string {
         const params = code.slice(2, -1).split(";");
         for (let p = 0; p < params.length; p++) {
           const n = Number(params[p].split(":")[0]);
-          if (n === 0 || n === 27) hostInverse = false;
-          else if (n === 7) hostInverse = true;
-          else if (
+          if (n === 0 || n === 27) {
+            hostInverse = false;
+            inverse = false;
+          } else if (n === 7) {
+            hostInverse = true;
+            inverse = true;
+          } else if (
             (n === 38 || n === 48 || n === 58) &&
             !params[p].includes(":")
           ) {
             p += params[p + 1] === "5" ? 2 : params[p + 1] === "2" ? 4 : 0;
           }
         }
-        inverse = hostInverse;
       }
       i += code.length;
       continue;

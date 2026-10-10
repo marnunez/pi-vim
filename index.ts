@@ -108,6 +108,7 @@ import {
   type VisualMode,
   type VisualPosition,
 } from "./visual.js";
+import { renderVisualSelection } from "./visual-selection-render.js";
 import {
   WordBoundaryCache,
   type WordMotionDirection,
@@ -4244,8 +4245,26 @@ export class ModalEditor extends CustomEditor {
   }
 
   render(width: number): string[] {
-    const lines = super.render(width);
-    this.syncCursorShapeForRender(lines);
+    let lines: string[];
+    if (isVisualMode(this.mode)) {
+      lines = renderVisualSelection(
+        this,
+        width,
+        this.mode,
+        this.getVisualAnchor(),
+        this.getCursor(),
+        () => {
+          const rendered = super.render(width);
+          // Strip the host software cursor before adding selection styling;
+          // otherwise cursor-shape synchronization could strip our highlight.
+          this.syncCursorShapeForRender(rendered);
+          return rendered;
+        },
+      );
+    } else {
+      lines = super.render(width);
+      this.syncCursorShapeForRender(lines);
+    }
     if (lines.length === 0) return lines;
 
     const rawLabel = fitModeLabel(this.getModeLabel(), width);

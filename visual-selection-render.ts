@@ -1,5 +1,6 @@
 import { visibleWidth } from "@earendil-works/pi-tui";
 import {
+  getInclusiveEndColumn,
   orderVisualEndpoints,
   type VisualMode,
   type VisualPosition,
@@ -129,19 +130,16 @@ export function renderVisualSelection(
       const source = host.state.lines[row.line];
       let span = spans.get(row.line);
       if (!span) {
-        let a = row.line === start.line ? start.col : 0;
-        let b = row.line === end.line ? end.col : source.length;
-        // Host segmentation keeps registered collapsed-paste markers atomic.
-        // Expand either endpoint to its containing atomic segment/grapheme.
-        for (const seg of host.segment(source, "grapheme")) {
-          const limit = seg.index + seg.segment.length;
-          if (a >= seg.index && a < limit) a = seg.index;
-          if (b >= seg.index && b < limit) {
-            b = limit;
-            break;
-          }
-        }
-        span = { start: a, end: b };
+        // Share Vim's range geometry with y/d/c: Pi's host segmenter also
+        // groups paste markers, but Vim's charwise operators do not. Painting
+        // that larger atomic span would promise more than the operator copies.
+        span = {
+          start: row.line === start.line ? start.col : 0,
+          end:
+            row.line === end.line
+              ? getInclusiveEndColumn(source, end.col)
+              : source.length,
+        };
         spans.set(row.line, span);
       }
       const a = Math.max(row.start, span.start);

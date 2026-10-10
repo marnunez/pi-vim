@@ -257,26 +257,39 @@ describe("Visual selection rendering", () => {
     assert.deepEqual(selected, Array(8).fill("界").concat(["👩‍💻", "👩‍💻"]));
   });
 
-  it("highlights registered paste markers atomically, even when visually split", () => {
-    const { editor } = createMultiLineEditor("x[ paste ]");
-    editor.setText("a[paste #1 1234 chars]z");
+  it("highlights exactly the copied paste-marker range, even when visually split", () => {
+    const tui = createCursorShapeTui();
+    const editor = new ModalEditor(tui, stubTheme, stubKeybindings);
+    const marker = "[paste #1 1234 chars]";
+    editor.setClipboardMirrorPolicy("never");
+    editor.setClipboardFn(() => {});
+    editor.setClipboardReadFn(() => null);
+    editor.setText(`a${marker}z`);
     internal(editor).pastes.set(1, "p".repeat(1234));
     internal(editor).pasteCounter = 1;
+    editor.handleInput("\x1b");
+    editor.focused = true;
     setInternalCursor(editor, 1);
-    editor.handleInput("v");
-    for (const width of [35, 9]) {
-      const output = renderChecked(editor, width);
-      const selected = output
-        .slice(1, -1)
-        .flatMap((row) =>
-          cells(row)
-            .filter((c) => c.inverse)
-            .map((c) => c.text),
-        )
-        .join("");
-      assert.equal(selected, "[paste #1 1234 chars]");
+    for (const wholeMarker of [false, true]) {
+      editor.handleInput("v");
+      if (wholeMarker) setInternalCursor(editor, marker.length);
+      const expected = wholeMarker ? marker : "[";
+      for (const width of [35, 9]) {
+        const output = renderChecked(editor, width);
+        const selected = output
+          .slice(1, -1)
+          .flatMap((row) =>
+            cells(row)
+              .filter((c) => c.inverse)
+              .map((c) => c.text),
+          )
+          .join("");
+        assert.equal(selected, expected);
+      }
+      editor.handleInput("y");
+      assert.equal(editor.getRegister(), expected);
+      assert.equal(editor.getExpandedText(), `a${"p".repeat(1234)}z`);
     }
-    assert.equal(editor.getExpandedText(), `a${"p".repeat(1234)}z`);
   });
 
   it("does not treat an unregistered literal paste marker as atomic", () => {

@@ -360,7 +360,9 @@ Typing done in an implicit insert session is repeatable too: the prompt opens in
 | `Y` | Yank every touched line |
 | `C` / `S` | Replace every touched line with one empty line and enter Insert mode |
 
-**The selection is highlighted in reverse video.** The footer reads ` VISUAL ` or ` V-LINE ` and the block cursor marks the moving end. Character-wise highlighting includes both endpoints; V-LINE highlights whole content rows, including blanks, but excludes borders and horizontal padding. The highlight follows wrapped rows and scrolling, and clears when you exit Visual mode.
+**The selection uses the active Pi theme's `selectedBg` colour.** Theme switches and hot reloads update the highlight on the next render, without changing existing foreground colours, formatting or selection contents. Standalone editors without a theme background helper fall back to reverse video. The footer reads ` VISUAL ` or ` V-LINE ` and the block cursor marks the moving end. Character-wise highlighting includes both endpoints; V-LINE highlights whole content rows, including blanks, but excludes borders and horizontal padding. The highlight follows wrapped rows and scrolling, and clears when you exit Visual mode.
+
+The hardware cursor stays hidden while Pi redraws output and reappears only after Pi positions it at the focused component's cursor marker. This avoids a brief cursor flash at the end of an updating status line; it does not disable the editor cursor's normal blinking. The terminal-write guard is removed when Pi replaces the editor or shuts down.
 
 For example, `Esc V j y` copies the current line and the next one; `Esc v e y` copies through the end of the current word. Clipboard mirroring still follows `piVim.clipboardMirror`.
 
@@ -506,7 +508,7 @@ pi-vim does not bundle any such tool and does not care which one you use — any
 | Line-wise put onto an all-whitespace first line | Lands at col 0 (shares the `^`/`I` all-whitespace behavior) | `^` lands on the last char of the line |
 | Undo / redo | Vim-change-scoped: one `u` reverts one whole vim change (insert session or change command), one `<C-r>` redoes it, and `.` is its own unit; a linear undo/redo list, no undo tree | Full per-change undo tree with `g+`/`g-`/`:earlier` time-travel |
 | Visual mode | `v` and `V` with `d`/`x`, `y`, `c`/`s` and the line-forcing `D`/`X`/`Y`/`C`/`S`; no `<C-v>`, no visual `p`/`r`/`J`/`~`/`>`/`<`/`gv`, no text objects, no `{count}v` | `v`, `V`, `<C-v>` with the full operator set |
-| Visual selection rendering | Reverse-video highlight follows host wrapping and viewport | Selection is highlighted |
+| Visual selection rendering | Active Pi `selectedBg` follows host wrapping and viewport; reverse-video fallback without a theme helper | Selection is highlighted |
 | Visual line-wise delete | Leaves the cursor at column 0, like `dd` does today | Preserves the cursor column |
 | Visual dot-repeat | A visual edit clears the repeatable command; `.` afterwards does nothing | `.` repeats the operator over an equally sized region |
 | Text objects | `iw` / `aw`, `iW` / `aW`, quote objects, and paren/bracket/brace objects; delimited counts cancel | Full text-object set |

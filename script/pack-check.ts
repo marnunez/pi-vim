@@ -254,9 +254,14 @@ const THRESHOLDS = {
   // geometry, ANSI state composition, and updated README. No dependencies.
   // Measured 61130 -> 64634 B packed, 240220 -> 251191 B unpacked, 17 -> 18
   // files. Leave ~366 B / ~809 B spare; tests, benchmarks and docs are excluded.
+  // Theme-native selection and redraw cursor guard: background state tracking,
+  // live selectedBg lookup, lifecycle-safe terminal writer wrapping and README.
+  // Measured 64634 -> 66126 B packed, 251191 -> 255891 B unpacked, still 18
+  // files and no dependencies. Leave ~374 B / ~609 B spare; tests/perf/docs
+  // remain excluded. Render/write replay evidence: doc/dev/theme-cursor-perf.md.
   maxFiles: 18,
-  maxSize: 65000,
-  maxUnpackedSize: 252000,
+  maxSize: 66500,
+  maxUnpackedSize: 256500,
 } as const;
 
 function compareStrings(a: string, b: string): number {

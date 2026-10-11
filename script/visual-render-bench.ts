@@ -3,6 +3,7 @@
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
+import { Theme } from "@earendil-works/pi-coding-agent";
 import {
   setInternalCursor,
   stubKeybindings,
@@ -85,8 +86,18 @@ const fixtures: Fixture[] = [
   },
 ];
 
+const selectionTheme = new Theme(
+  { muted: "", text: "", thinkingXhigh: "" } as ConstructorParameters<
+    typeof Theme
+  >[0],
+  { selectedBg: "#2a2d35" } as ConstructorParameters<typeof Theme>[1],
+  "truecolor",
+);
+
 function createEditor(fixture: Fixture) {
-  const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings);
+  const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings, {
+    selectionBackground: (s) => selectionTheme.bg("selectedBg", s),
+  });
   editor.setClipboardMirrorPolicy("never");
   editor.setClipboardFn(() => {});
   editor.setClipboardReadFn(() => null);

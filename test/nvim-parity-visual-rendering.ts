@@ -107,10 +107,15 @@ const cases: RenderCase[] = [
   },
 ];
 
-describe("nvim parity with rendering between visual-mode inputs", () => {
+// Pi's selectedBg is a paint policy, not a change to Neovim range semantics.
+// Change theme background between frames so themed rendering remains read-only.
+describe("nvim parity with themed rendering between visual-mode inputs", () => {
   for (const testCase of cases) {
     it(testCase.name, async () => {
-      const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings);
+      let background = 27;
+      const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings, {
+        selectionBackground: (s) => `\x1b[48;5;${background}m${s}\x1b[49m`,
+      });
       editor.setClipboardMirrorPolicy("never");
       editor.setClipboardFn(() => {});
       editor.setClipboardReadFn(() => null);
@@ -133,6 +138,7 @@ describe("nvim parity with rendering between visual-mode inputs", () => {
           register: editor.getRegister(),
         };
         editor.render(testCase.width);
+        background = background === 27 ? 7 : 27;
         editor.render(testCase.width);
         assert.deepEqual(
           {

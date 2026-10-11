@@ -1,5 +1,7 @@
 # Visual selection render evidence
 
+These are the initial reverse-video measurements, with `39972a9` as the final historical after checkout. The current harness now supplies a theme callback; the old checkouts ignore it. Current `selectedBg` and cursor-guard measurements are recorded separately in [theme-cursor-perf.md](theme-cursor-perf.md).
+
 Measured on nix-desktop, Node v24.20.0, Pi peers 0.87.1. Baseline is fork commit `d2d5d24` (before highlighting); after is the highlight implementation with range alignment and the ANSI-boundary fix. Run the same parent-owned harness against both entries, back to back:
 
 ```sh

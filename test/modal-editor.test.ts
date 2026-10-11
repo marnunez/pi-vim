@@ -453,13 +453,9 @@ function getClipboardReadHelperSourceWithMock(
 ): string {
   const mockModuleUrl = import.meta.url;
   const helperSource = buildClipboardReadHelperSource(mockModuleUrl);
-  const requireLine = `const require = createRequire(${JSON.stringify(mockModuleUrl)});`;
   const clipboardLine = 'const clipboard = require("@mariozechner/clipboard");';
   const replacement = `const clipboard = ${mockClipboardExpression};`;
-  const mockedSource = helperSource.replace(
-    `${requireLine}\n${clipboardLine}`,
-    replacement,
-  );
+  const mockedSource = helperSource.replace(clipboardLine, replacement);
 
   assert.notEqual(
     mockedSource,

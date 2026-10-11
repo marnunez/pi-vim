@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -57,33 +57,48 @@ function isClipboardEnvironmentFailure(error: unknown): boolean {
 }
 
 function tryResolvePiCodingAgentModuleUrl(): string | undefined {
+  // The running host wins over an extension's potentially stale local peer.
+  const hostUrl = resolvePiCodingAgentModuleUrlFromCli(process.argv[1]);
+  if (hostUrl) return hostUrl;
   try {
-    return import.meta.resolve("@earendil-works/pi-coding-agent");
+    const url = import.meta.resolve("@earendil-works/pi-coding-agent");
+    if (existsSync(new URL(url))) return url;
   } catch {
-    try {
-      const cliPath = process.argv[1];
-      if (!cliPath || !existsSync(cliPath)) return undefined;
-
-      let distDir = dirname(realpathSync(cliPath));
-      if (basename(distDir) === "bundle") distDir = dirname(distDir);
-      const modulePath = join(distDir, "index.js");
-
-      if (
-        basename(distDir) === "dist" &&
-        basename(dirname(distDir)) === "pi-coding-agent" &&
-        existsSync(modulePath)
-      ) {
-        return pathToFileURL(modulePath).href;
-      }
-    } catch {
-      // Compiled runtimes may expose virtual entrypoints through existsSync()
-      // that cannot be resolved through the host filesystem.
-    }
-    return undefined;
+    // Managed Pi supplies virtual peers; child processes need a real SDK file.
   }
+  return undefined;
+}
+
+export function resolvePiCodingAgentModuleUrlFromCli(
+  cliPath: string | undefined,
+): string | undefined {
+  try {
+    if (!cliPath || !existsSync(cliPath)) return undefined;
+    let distDir = dirname(realpathSync(cliPath));
+    if (basename(distDir) === "bundle") distDir = dirname(distDir);
+    if (basename(distDir) !== "dist") return undefined;
+    const modulePath = join(distDir, "index.js");
+    const metadata: unknown = JSON.parse(
+      readFileSync(join(dirname(distDir), "package.json"), "utf8"),
+    );
+    if (
+      typeof metadata === "object" &&
+      metadata !== null &&
+      "name" in metadata &&
+      (metadata.name === "@earendil-works/pi-coding-agent" ||
+        metadata.name === "@mariozechner/pi-coding-agent") &&
+      existsSync(modulePath)
+    ) {
+      return pathToFileURL(modulePath).href;
+    }
+  } catch {
+    // Non-filesystem/compiled entrypoints must not prevent editor activation.
+  }
+  return undefined;
 }
 
 const CLIPBOARD_HELPER_COPY_FAILED_EXIT_CODE = 2;
+const CLIPBOARD_HELPER_READ_UNAVAILABLE_EXIT_CODE = 3;
 
 type ClipboardHelperSources = {
   read: string;
@@ -111,16 +126,30 @@ try {
 
 export function buildClipboardReadHelperSource(moduleUrl: string): string {
   return `
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire(${JSON.stringify(moduleUrl)});
-const clipboard = require("@mariozechner/clipboard");
-if (!await clipboard.hasText()) {
-  process.exit(0);
-}
-const text = await clipboard.getText();
-if (typeof text === "string") {
+const utilityUrl = new URL("./utils/clipboard.js", ${JSON.stringify(moduleUrl)});
+const readClipboardText = existsSync(utilityUrl)
+  ? (await import(utilityUrl.href)).readClipboardText
+  : undefined;
+if (typeof readClipboardText === "function") {
+  const text = await readClipboardText();
+  if (typeof text !== "string") {
+    process.exit(${CLIPBOARD_HELPER_READ_UNAVAILABLE_EXIT_CODE});
+  }
   process.stdout.write(text);
+} else {
+  // Pi 0.78 has no native text reader; retain its optional legacy backend.
+  const require = createRequire(${JSON.stringify(moduleUrl)});
+  const clipboard = require("@mariozechner/clipboard");
+  if (!await clipboard.hasText()) {
+    process.exit(0);
+  }
+  const text = await clipboard.getText();
+  if (typeof text === "string") {
+    process.stdout.write(text);
+  }
 }
 `;
 }
@@ -143,19 +172,34 @@ export function readClipboardInChildProcess(): string | null {
   if (!helperSources) return null;
 
   try {
+    // spawnSync accepts Node's common detached option at runtime, although
+    // its narrower TypeScript option type omits it. Linux tests observe actual
+    // descendant cleanup, not just that this option was passed.
+    const options = {
+      encoding: "utf8" as const,
+      maxBuffer: CLIPBOARD_READ_MAX_BUFFER_BYTES,
+      stdio: ["ignore", "pipe", "ignore"] as ["ignore", "pipe", "ignore"],
+      timeout: CLIPBOARD_READ_TIMEOUT_MS,
+      // Native wl-paste/xclip children must share a group owned by the helper.
+      detached: process.platform !== "win32",
+      windowsHide: true,
+    };
     const result = spawnSync(
       process.execPath,
       ["--input-type=module", "-e", helperSources.read],
-      {
-        encoding: "utf8",
-        maxBuffer: CLIPBOARD_READ_MAX_BUFFER_BYTES,
-        stdio: ["ignore", "pipe", "ignore"],
-        timeout: CLIPBOARD_READ_TIMEOUT_MS,
-        windowsHide: true,
-      },
+      options,
     );
 
-    if (result.error || result.status !== 0 || result.signal) return null;
+    if (result.error || result.status !== 0 || result.signal) {
+      if (process.platform !== "win32" && result.pid > 0) {
+        try {
+          process.kill(-result.pid, "SIGKILL");
+        } catch {
+          // Usually ESRCH: the helper and its children have already exited.
+        }
+      }
+      return null;
+    }
     return result.stdout ?? "";
   } catch {
     return null;

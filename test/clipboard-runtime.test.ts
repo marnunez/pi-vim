@@ -202,12 +202,16 @@ console.log(JSON.stringify({unavailable:value===null, elapsed, running}));
           resolvePiCodingAgentModuleUrlFromCli(fixture.bundledCli),
           fixture.moduleUrl,
         );
-        const link = join(fixture.root, "pi");
-        symlinkSync(fixture.bundledCli, link);
-        assert.equal(
-          resolvePiCodingAgentModuleUrlFromCli(link),
-          fixture.moduleUrl,
-        );
+        // Windows symlink creation can require privileges; direct/bundled
+        // metadata resolution above remains covered on every platform.
+        if (process.platform !== "win32") {
+          const link = join(fixture.root, "pi");
+          symlinkSync(fixture.bundledCli, link);
+          assert.equal(
+            resolvePiCodingAgentModuleUrlFromCli(link),
+            fixture.moduleUrl,
+          );
+        }
       } finally {
         fixture.cleanup();
       }

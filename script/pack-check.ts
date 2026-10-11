@@ -259,9 +259,13 @@ const THRESHOLDS = {
   // Measured 64634 -> 66126 B packed, 251191 -> 255891 B unpacked, still 18
   // files and no dependencies. Leave ~374 B / ~609 B spare; tests/perf/docs
   // remain excluded. Render/write replay evidence: doc/dev/theme-cursor-perf.md.
+  // Native clipboard bridge: current SDK reader, metadata-identified host,
+  // bounded descendant cleanup and README guidance. No dependencies/files.
+  // Measured 66300 -> 67098 B packed, 256287 -> 258605 B unpacked, still 18
+  // files. Leave ~402 B / ~895 B spare; evidence: doc/dev/clipboard-bridge.md.
   maxFiles: 18,
-  maxSize: 66500,
-  maxUnpackedSize: 256500,
+  maxSize: 67500,
+  maxUnpackedSize: 259500,
 } as const;
 
 function compareStrings(a: string, b: string): number {

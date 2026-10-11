@@ -319,6 +319,8 @@ implemented and cancel the pending operator. Linewise counted yank (`{count}yy`,
 
 Put normally reads the OS clipboard first, but uses the shadow register when the latest mirror was skipped by policy, is still pending, or failed. Paste text ending in `\n` is line-wise. Repeated puts stop at a 512 KiB payload safety cap; one register payload is always inserted whole.
 
+The bridge uses Pi 0.87.1's native text reader, including its Wayland/X11 backends; Pi 0.78.0 retains its optional legacy backend. Helpers use the running Pi installation, including Nix layouts, rather than a stale extension-local SDK. Reads preserve whitespace and Unicode, have a 750 ms deadline and a 1 MiB output limit, and fall back to the register if unavailable. A successful empty-string read remains an empty put.
+
 Cursor placement matches Vim except when the first pasted line is all whitespace, where pi-vim lands at column 0. A line-wise put (`yyp`, `yyP`, or any register ending in `\n`) lands on the **first non-blank** of the **first** pasted line, not the end of the pasted text. A char-wise put lands on the **last** inserted character.
 
 ---

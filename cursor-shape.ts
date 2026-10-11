@@ -6,6 +6,57 @@ export const INSERT_CURSOR_SHAPE = "\x1b[5 q";
 export const BLOCK_CURSOR_SHAPE = "\x1b[1 q";
 const RESET_CURSOR_SHAPE = "\x1b[0 q";
 const SHOW_HARDWARE_CURSOR = "\x1b[?25h";
+const HIDE_HARDWARE_CURSOR = "\x1b[?25l";
+const BEGIN_SYNCHRONIZED_OUTPUT = "\x1b[?2026h";
+
+type TerminalWriter = { write: (data: string) => void };
+const redrawGuards = new WeakMap<
+  TerminalWriter,
+  {
+    users: number;
+    original: TerminalWriter["write"];
+    guarded: TerminalWriter["write"];
+  }
+>();
+
+// Pi's main-screen renderer publishes the frame before repositioning the
+// hardware cursor. Keep it hidden at that boundary; Pi remains responsible
+// for showing it again after moving to the focused component's cursor marker.
+function guardRedrawCursor(terminal: TerminalWriter): () => void {
+  let state = redrawGuards.get(terminal);
+  if (!state) {
+    const original = terminal.write;
+    state = {
+      users: 0,
+      original,
+      guarded(data: string): void {
+        original.call(
+          this,
+          state && state.users > 0 && data.includes(BEGIN_SYNCHRONIZED_OUTPUT)
+            ? data.replaceAll(
+                BEGIN_SYNCHRONIZED_OUTPUT,
+                BEGIN_SYNCHRONIZED_OUTPUT + HIDE_HARDWARE_CURSOR,
+              )
+            : data,
+        );
+      },
+    };
+    terminal.write = state.guarded;
+    redrawGuards.set(terminal, state);
+  }
+  const guard = state;
+  guard.users++;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--guard.users !== 0) return;
+    // Do not overwrite another extension's later wrapper. An inactive guard
+    // still referenced by that wrapper passes writes through unchanged.
+    if (terminal.write === guard.guarded) terminal.write = guard.original;
+    redrawGuards.delete(terminal);
+  };
+}
 
 export type CursorShapeSequence =
   | typeof INSERT_CURSOR_SHAPE
@@ -71,8 +122,12 @@ export function enableCursorShapeSupport(
 
   const previousShowHardwareCursor = runtime.getShowHardwareCursor?.();
   runtime.setShowHardwareCursor(true);
+  const releaseRedrawGuard = guardRedrawCursor(
+    (tui as { terminal: TerminalWriter }).terminal,
+  );
 
   return (event) => {
+    releaseRedrawGuard();
     runtime.writeCursorShape(RESET_CURSOR_SHAPE);
     if (event?.reason === "quit") {
       runtime.writeCursorShape(SHOW_HARDWARE_CURSOR);

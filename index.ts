@@ -4378,6 +4378,9 @@ export default function (pi: ExtensionAPI) {
       (event) => pi.events.emit("pi-vim:mode-change", event),
     );
     ctx.ui.setEditorComponent((tui, theme, kb) => {
+      // Pi can recreate the editor from the same factory. Release the previous
+      // writer guard and captured hardware setting before acquiring another.
+      cursorShapeCleanup?.();
       cursorShapeCleanup = enableCursorShapeSupport(tui);
       const editor = new ModalEditor(tui, theme, kb, {
         labelColorizers,

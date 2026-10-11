@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import * as piTui from "@earendil-works/pi-tui";
 import { enableCursorShapeSupport } from "../cursor-shape.js";
+import installPiVim, { type ModalEditor } from "../index.js";
+import {
+  createCursorShapeTui,
+  createExtensionApiHarness,
+  stubKeybindings,
+  stubTheme,
+} from "./harness.js";
 
 const BEGIN = "\x1b[?2026h";
 const END = "\x1b[?2026l";
@@ -123,6 +130,20 @@ describe("hardware cursor during redraw", () => {
     cleanup();
   });
 
+  it("preserves the fullscreen renderer's in-frame cursor positioning and visibility", () => {
+    const terminal = createTerminal();
+    const cleanup = enableCursorShapeSupport({
+      terminal,
+      setShowHardwareCursor() {},
+    });
+    assert.ok(cleanup);
+    terminal.visible = true;
+    // Unlike regular mode, fullscreen restores its cursor before ending sync.
+    terminal.write(`${BEGIN}\rstatus updating\x1b[4G${SHOW}${END}`);
+    assert.deepEqual(terminal.frames, [{ visible: true, row: 0, col: 3 }]);
+    cleanup();
+  });
+
   it("preserves ordinary writes and restores the original writer on cleanup", () => {
     const terminal = createTerminal();
     const original = terminal.write;
@@ -172,6 +193,55 @@ describe("hardware cursor during redraw", () => {
     assert.equal(terminal.write, later);
     terminal.write(`${BEGIN}after cleanup${END}`);
     assert.equal(terminal.writes.at(-1), `${BEGIN}after cleanup${END}`);
+  });
+
+  it("releases guards after immediate mount, factory recreation and shutdown", async () => {
+    type Factory = (
+      ...args: ConstructorParameters<typeof ModalEditor>
+    ) => ModalEditor;
+    for (const replaceTerminal of [false, true]) {
+      const pi = createExtensionApiHarness();
+      const first = createCursorShapeTui();
+      const second = replaceTerminal ? createCursorShapeTui() : first;
+      const firstWrite = first.terminal.write;
+      const secondWrite = second.terminal.write;
+      let factory: Factory | undefined;
+      const ctx = {
+        cwd: process.cwd(),
+        hasUI: true,
+        ui: {
+          theme: stubTheme,
+          setEditorComponent(value: Factory) {
+            factory = value;
+            value(first, stubTheme, stubKeybindings); // Pi mounts immediately.
+          },
+          notify() {},
+        },
+        shutdown() {},
+      };
+      installPiVim(pi);
+      await pi.emit("session_start", undefined, ctx);
+      assert.ok(factory);
+      factory(second, stubTheme, stubKeybindings);
+      if (replaceTerminal) {
+        assert.equal(first.terminal.write, firstWrite);
+        assert.equal(first.getShowHardwareCursor?.(), false);
+      }
+      second.terminal.write?.(`${BEGIN}mounted${END}`);
+      assert.equal(
+        second.terminalWrites.at(-1),
+        `${BEGIN}${HIDE}mounted${END}`,
+      );
+      await pi.emit("session_shutdown", undefined, ctx);
+      assert.equal(first.terminal.write, firstWrite);
+      assert.equal(second.terminal.write, secondWrite);
+      assert.equal(second.getShowHardwareCursor?.(), false);
+      second.terminal.write?.(`${BEGIN}after shutdown${END}`);
+      assert.equal(
+        second.terminalWrites.at(-1),
+        `${BEGIN}after shutdown${END}`,
+      );
+    }
   });
 
   it("leaves unsupported runtimes untouched", () => {

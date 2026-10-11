@@ -108,7 +108,10 @@ import {
   type VisualMode,
   type VisualPosition,
 } from "./visual.js";
-import { renderVisualSelection } from "./visual-selection-render.js";
+import {
+  renderVisualSelection,
+  type SelectionBackground,
+} from "./visual-selection-render.js";
 import {
   WordBoundaryCache,
   type WordMotionDirection,
@@ -263,6 +266,9 @@ type ModalEditorOptions = {
   // Reverse-video transform applied to the label. When the label defers to the
   // host color it is wrapped with this so it keeps its block styling.
   labelTransform?: ((s: string) => string) | null;
+  // Resolve Pi's active selectedBg at render time. Without a theme bg helper,
+  // standalone constructors retain reverse-video selection.
+  selectionBackground?: SelectionBackground | null;
 };
 
 export class ModalEditor extends CustomEditor {
@@ -303,6 +309,7 @@ export class ModalEditor extends CustomEditor {
   private readonly labelColorizers: ModeColorizers | null;
   private readonly borderColorizers: ModeColorizers | null;
   private readonly offBorderColor: ((s: string) => string) | null;
+  private readonly selectionBackground: SelectionBackground | null;
   // Latest host-assigned border color and whether it is the neutral resting
   // default. Kept as mutable instance fields (not closure locals) so the label
   // resolver can read the same thinking state the border uses.
@@ -364,6 +371,7 @@ export class ModalEditor extends CustomEditor {
     this.borderSync = opts?.borderSync ?? null;
     this.labelSync = opts?.labelSync ?? null;
     this.labelTransform = opts?.labelTransform ?? null;
+    this.selectionBackground = opts?.selectionBackground ?? null;
     this.installModeBorderColorizer();
   }
 
@@ -4260,6 +4268,7 @@ export class ModalEditor extends CustomEditor {
           this.syncCursorShapeForRender(rendered);
           return rendered;
         },
+        this.selectionBackground,
       );
     } else {
       lines = super.render(width);
@@ -4377,6 +4386,14 @@ export default function (pi: ExtensionAPI) {
         labelSync,
         offBorderColor,
         labelTransform: reverseVideo,
+        selectionBackground: (s) => {
+          // ctx.ui.theme is a getter for Pi's current theme. Capturing `t`
+          // above would retain stale colors after theme switches/hot reload.
+          const activeTheme = ctx.ui.theme;
+          return typeof activeTheme?.bg === "function"
+            ? activeTheme.bg("selectedBg", s)
+            : undefined;
+        },
       });
       editor.setClipboardMirrorPolicy(clipboardMirrorPolicy.policy);
       editor.setQuitFn(() => ctx.shutdown());

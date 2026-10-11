@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import { CustomEditor, Theme } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, visibleWidth } from "@earendil-works/pi-tui";
-import { ModalEditor } from "../index.js";
+import installPiVim, { ModalEditor } from "../index.js";
+import { setPiVimSettingsReaderForTests } from "../settings.js";
 import { highlightCells } from "../visual-selection-render.js";
 import {
   createCursorShapeTui,
+  createExtensionApiHarness,
   createMultiLineEditor,
   sendKeys,
   setInternalCursor,
@@ -21,12 +23,24 @@ const ansi =
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const plain = (text: string) => text.replace(ansi, "");
 
-type Cell = { text: string; inverse: boolean; foreground: string };
+type Cell = {
+  text: string;
+  inverse: boolean;
+  foreground: string;
+  background: string;
+  bold: boolean;
+  underline: boolean;
+  link: string;
+};
 /** Independent terminal-state observer. Wide graphemes occupy two cells. */
 function cells(text: string): Cell[] {
   const result: Cell[] = [];
   let inverse = false;
   let foreground = "default";
+  let background = "default";
+  let bold = false;
+  let underline = false;
+  let link = "";
   let position = 0;
   for (const match of text.matchAll(ansi)) {
     emit(text.slice(position, match.index));
@@ -38,15 +52,41 @@ function cells(text: string): Cell[] {
         if (n === 0) {
           inverse = false;
           foreground = "default";
+          background = "default";
+          bold = underline = false;
         }
+        if (n === 1) bold = true;
+        if (n === 22) bold = false;
+        if (n === 4) underline = true;
+        if (n === 24) underline = false;
         if (n === 7) inverse = true;
         if (n === 27) inverse = false;
         if (n === 39) foreground = "default";
         if (n >= 30 && n <= 37) foreground = String(n);
-        if ((n === 38 || n === 48 || n === 58) && !params[i].includes(":")) {
-          i += params[i + 1] === "5" ? 2 : params[i + 1] === "2" ? 4 : 0;
+        if (n === 49) background = "default";
+        if ((n >= 40 && n <= 47) || (n >= 100 && n <= 107))
+          background = String(n);
+        if (n === 38 || n === 48 || n === 58) {
+          let payload = params[i].split(":").slice(1);
+          if (!params[i].includes(":")) {
+            const count = params[i + 1] === "5" ? 2 : 4;
+            payload = params.slice(i + 1, i + 1 + count);
+            i += count;
+          }
+          const color =
+            payload[0] === "5"
+              ? `palette:${payload.at(-1)}`
+              : `rgb:${payload.slice(-3).join(",")}`;
+          if (n === 38) foreground = color;
+          if (n === 48) background = color;
         }
       }
+    } else if (code.startsWith("\x1b]8;")) {
+      link = code
+        .slice(4, code.endsWith("\x07") ? -1 : -2)
+        .split(";")
+        .slice(1)
+        .join(";");
     }
     position = match.index + code.length;
   }
@@ -56,7 +96,15 @@ function cells(text: string): Cell[] {
   function emit(run: string) {
     for (const { segment } of segmenter.segment(run)) {
       for (let i = 0; i < visibleWidth(segment); i++) {
-        result.push({ text: segment, inverse, foreground });
+        result.push({
+          text: segment,
+          inverse,
+          foreground,
+          background,
+          bold,
+          underline,
+          link,
+        });
       }
     }
   }
@@ -496,5 +544,230 @@ describe("ANSI selection composition", () => {
     expectSelection(painted, [0, 1, 2, 3]);
     assert.equal(plain(painted), "abcde");
     assert.equal(cells(`${painted}Z`).at(-1)?.inverse, false);
+  });
+
+  it("paints selectedBg without changing foreground, formatting, links or cursor markers", () => {
+    const source = `\x1b[44;1;4;38;2;7;0;27ma\x1b]8;;https://example.org\x07b${CURSOR_MARKER}\x1b[48;5;7mc\x1b[0md\x1b]8;;\x1b\\\x1b[48:2::27:7:0me`;
+    const painted = highlightCells(source, 1, 4, "\x1b[48;2;0;7;27m");
+    assert.equal(plain(painted), plain(source));
+    assert.equal(visibleWidth(painted), visibleWidth(source));
+    assert.deepEqual(
+      cells(painted).map((c) => c.background),
+      ["44", "rgb:0,7,27", "rgb:0,7,27", "rgb:0,7,27", "rgb:27,7,0"],
+    );
+    assert.deepEqual(
+      cells(painted).map((c) => ({ ...c, background: undefined })),
+      cells(source).map((c) => ({ ...c, background: undefined })),
+    );
+    assert.deepEqual(
+      cells(painted).map((c) => c.link),
+      [
+        "",
+        "https://example.org",
+        "https://example.org",
+        "https://example.org",
+        "",
+      ],
+    );
+    assert.ok(painted.includes(CURSOR_MARKER));
+    for (const sequence of source.matchAll(ansi))
+      assert.ok(painted.includes(sequence[0]), `lost ${sequence[0]}`);
+    assert.equal(cells(`${painted}Z`).at(-1)?.background, "rgb:27,7,0");
+  });
+
+  it("reapplies selection after host background/reset commands and restores the latest host background", () => {
+    for (const style of [
+      "\x1b[0m",
+      "\x1b[m",
+      "\x1b[49m",
+      "\x1b[41m",
+      "\x1b[104m",
+      "\x1b[48;5;0m",
+      "\x1b[48;5;7m",
+      "\x1b[48;5;27m",
+      "\x1b[48;2;7;0;27m",
+      "\x1b[48:2::0:7:27m",
+      "\x1b[48:2:0:27:7:0m",
+      "\x1b[48:5:7m",
+      "\x1b[0;44;1m",
+      "\x1b[48;2;7;0;27;0m",
+      "\x1b[38;5;7m",
+      "\x1b[38:2::7:0:27;1m",
+      "\x1b[58;2;7;0;27m",
+    ]) {
+      const source = `\x1b[44ma${style}b${style}c`;
+      for (const [from, to] of [
+        [0, 1],
+        [1, 2],
+        [0, 2],
+        [1, 3],
+      ]) {
+        const painted = highlightCells(source, from, to, "\x1b[48;5;25m");
+        assert.deepEqual(
+          cells(painted).map((c) => c.background),
+          cells(source).map((c, i) =>
+            i >= from && i < to ? "palette:25" : c.background,
+          ),
+          `${JSON.stringify(style)}, ${from}:${to}`,
+        );
+        assert.deepEqual(
+          cells(painted).map((c) => ({ ...c, background: undefined })),
+          cells(source).map((c) => ({ ...c, background: undefined })),
+        );
+        assert.deepEqual(
+          cells(`${painted}Z`).at(-1),
+          cells(`${source}Z`).at(-1),
+        );
+      }
+    }
+  });
+
+  it("supports terminal-default selectedBg and preserves host inverse attributes", () => {
+    const source = "\x1b[44;7mab\x1b[27mc";
+    const painted = highlightCells(source, 1, 2, "\x1b[49m");
+    assert.deepEqual(
+      cells(painted).map((c) => c.background),
+      ["44", "default", "44"],
+    );
+    assert.deepEqual(
+      cells(painted).map((c) => c.inverse),
+      [true, true, false],
+    );
+    assert.equal(cells(`${painted}Z`).at(-1)?.background, "44");
+  });
+});
+
+function selectionTheme(color: string | number): Theme {
+  type Args = ConstructorParameters<typeof Theme>;
+  return new Theme(
+    { muted: "", text: "", thinkingXhigh: "" } as Args[0],
+    { selectedBg: color } as Args[1],
+    "truecolor",
+  );
+}
+
+function expectBackground(
+  row: string,
+  selected: number[],
+  background: string,
+): void {
+  assert.deepEqual(
+    cells(row).map((c) => c.background),
+    cells(row).map((_, i) => (selected.includes(i) ? background : "default")),
+  );
+}
+
+// Pi's selectedBg is a UI paint policy, not a change to Vim range semantics.
+// Existing geometry and nvim parity coverage continue to exercise those ranges.
+describe("Theme-native Visual selection", () => {
+  it("uses the injected theme background for charwise, empty and V-LINE rows, never padding/borders", () => {
+    const theme = selectionTheme(27);
+    const editor = new ModalEditor(
+      createCursorShapeTui(),
+      stubTheme,
+      stubKeybindings,
+      {
+        selectionBackground: (s) => theme.bg("selectedBg", s),
+      },
+    );
+    editor.setText("a界z\n\nlast");
+    editor.setPaddingX(1);
+    editor.focused = true;
+    editor.handleInput("\x1b");
+    setInternalCursor(editor, 1);
+    editor.handleInput("v");
+    setInternalCursor(editor, 0, 1);
+    let output = renderChecked(editor, 12);
+    expectBackground(output[1], [2, 3, 4, 5], "palette:27");
+    expectBackground(output[2], [1], "palette:27");
+    assert.equal(output.join("").split(CURSOR_MARKER).length - 1, 1);
+    editor.handleInput("V");
+    output = renderChecked(editor, 12);
+    for (const row of output.slice(1, 3))
+      expectBackground(
+        row,
+        Array.from({ length: 10 }, (_, i) => i + 1),
+        "palette:27",
+      );
+    for (const row of [output[0], ...output.slice(3)])
+      expectBackground(row, [], "palette:27");
+    editor.handleInput("\x1b");
+    output = renderChecked(editor, 12);
+    for (const row of output) expectBackground(row, [], "palette:27");
+  });
+
+  it("looks up the current ctx.ui.theme on every render, including hot reload and no-bg fallback", async () => {
+    const restore = setPiVimSettingsReaderForTests(() => ({}));
+    const pi = createExtensionApiHarness();
+    type Factory = (
+      tui: ConstructorParameters<typeof ModalEditor>[0],
+      theme: ConstructorParameters<typeof ModalEditor>[1],
+      kb: ConstructorParameters<typeof ModalEditor>[2],
+    ) => ModalEditor;
+    let factory: Factory | undefined;
+    let activeTheme: Theme | typeof stubTheme = stubTheme;
+    let reads = 0;
+    const ctx = {
+      cwd: process.cwd(),
+      hasUI: true,
+      ui: {
+        get theme() {
+          reads++;
+          return activeTheme;
+        },
+        setEditorComponent(value: Factory) {
+          factory = value;
+        },
+        notify() {},
+      },
+      shutdown() {},
+    };
+    try {
+      installPiVim(pi);
+      await pi.emit("session_start", undefined, ctx);
+      assert.ok(factory);
+      const editor = factory(
+        createCursorShapeTui(),
+        stubTheme,
+        stubKeybindings,
+      );
+      editor.setText("abcde");
+      editor.focused = true;
+      editor.handleInput("\x1b");
+      setInternalCursor(editor, 1);
+      sendKeys(editor, ["v", "l"]);
+      expectSelection(renderChecked(editor, 12)[1], [1, 2]);
+      for (const [theme, background] of [
+        [selectionTheme(7), "palette:7"],
+        [selectionTheme("#00071b"), "rgb:0,7,27"],
+        [selectionTheme(0), "palette:0"],
+      ] as const) {
+        activeTheme = theme; // Pi replaces the Theme instance on switch/reload.
+        const previousReads = reads;
+        const output = renderChecked(editor, 12);
+        assert.ok(
+          reads > previousReads,
+          "render must read the active theme getter",
+        );
+        expectBackground(output[1], [1, 2], background);
+        assert.equal(
+          cells(output[1]).some((c) => c.inverse),
+          false,
+        );
+        assert.equal(cells(`${output[1]}Z`).at(-1)?.background, "default");
+      }
+      activeTheme = stubTheme;
+      expectSelection(renderChecked(editor, 12)[1], [1, 2]);
+      activeTheme = selectionTheme(27);
+      editor.handleInput("\x1b");
+      for (const row of renderChecked(editor, 12))
+        expectBackground(row, [], "palette:27");
+      editor.handleInput("i");
+      for (const row of renderChecked(editor, 12))
+        expectBackground(row, [], "palette:27");
+    } finally {
+      restore();
+      await pi.emit("session_shutdown", { reason: "test" }, ctx);
+    }
   });
 });

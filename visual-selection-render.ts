@@ -6,6 +6,8 @@ import {
   type VisualPosition,
 } from "./visual.js";
 
+export type SelectionBackground = (text: string) => string | undefined;
+
 type LayoutRow = { text: string; hasCursor: boolean; cursorPos?: number };
 type Segment = { segment: string; index: number };
 type Host = {
@@ -49,6 +51,7 @@ export function renderVisualSelection(
   anchor: VisualPosition,
   cursor: VisualPosition,
   renderHost: () => string[],
+  paintBackground?: SelectionBackground | null,
 ): string[] {
   const host = editor as Host;
   if (
@@ -107,6 +110,9 @@ export function renderVisualSelection(
     host.scrollOffset + Math.max(5, Math.floor(host.tui.terminal.rows * 0.3)),
   );
   if (rendered.length < visible.length + 2) unsupported("content row count");
+  // Pi's bg helper wraps text with a background SGR and a trailing SGR 49.
+  // Resolve the wrapper once per frame, never retain a theme-colored string.
+  const background = paintBackground?.("\0")?.split("\0")[0];
   const { start, end } = orderVisualEndpoints(anchor, cursor);
   const spans = new Map<number, { start: number; end: number }>();
   for (let i = 0; i < visible.length; i++) {
@@ -158,7 +164,8 @@ export function renderVisualSelection(
         to = Math.min(padding + Math.max(contentWidth, textWidth), to + 1);
       }
     }
-    if (to > from) rendered[i + 1] = highlightCells(output, from, to);
+    if (to > from)
+      rendered[i + 1] = highlightCells(output, from, to, background);
   }
   return rendered;
 }
@@ -205,15 +212,29 @@ function mapSourceRows(layout: LayoutRow[], host: Host): SourceRow[] {
   return rows;
 }
 
-/** Add reverse video to a cell interval without losing host SGR/OSC/APC bytes.
- * Only the inverse attribute is overridden; host colors, links, and the cursor
- * marker stay intact. A host reset inside the selection cannot clear it.
+/** Paint a cell interval without losing host SGR/OSC/APC bytes. An optional
+ * background-opening SGR replaces reverse video; all other attributes stay
+ * intact. Host resets cannot clear selection, and its host style is restored
+ * at the boundary, including when the host changes background inside selection.
  */
-export function highlightCells(text: string, from: number, to: number): string {
+export function highlightCells(
+  text: string,
+  from: number,
+  to: number,
+  background?: string,
+): string {
   let result = "";
   let column = 0;
   let hostInverse = false;
   let inverse = false;
+  let hostBackground = "\x1b[49m";
+  let activeBackground = hostBackground;
+  const setBackground = (value: string) => {
+    if (activeBackground !== value) {
+      result += value;
+      activeBackground = value;
+    }
+  };
   const setInverse = (value: boolean) => {
     if (inverse !== value) {
       result += value ? "\x1b[7m" : "\x1b[27m";
@@ -231,18 +252,29 @@ export function highlightCells(text: string, from: number, to: number): string {
       if (code.startsWith("\x1b[") && code.endsWith("m")) {
         const params = code.slice(2, -1).split(";");
         for (let p = 0; p < params.length; p++) {
+          const start = p;
           const n = Number(params[p].split(":")[0]);
+          // Extended colors are one SGR command, not a sequence of attributes:
+          // RGB components and palette indexes may themselves be 0, 7 or 27.
+          if ((n === 38 || n === 48 || n === 58) && !params[p].includes(":")) {
+            p += params[p + 1] === "5" ? 2 : params[p + 1] === "2" ? 4 : 0;
+          }
           if (n === 0 || n === 27) {
             hostInverse = false;
             inverse = false;
           } else if (n === 7) {
             hostInverse = true;
             inverse = true;
+          }
+          if (n === 0 || n === 49) {
+            hostBackground = activeBackground = "\x1b[49m";
           } else if (
-            (n === 38 || n === 48 || n === 58) &&
-            !params[p].includes(":")
+            n === 48 ||
+            (n >= 40 && n <= 47) ||
+            (n >= 100 && n <= 107)
           ) {
-            p += params[p + 1] === "5" ? 2 : params[p + 1] === "2" ? 4 : 0;
+            hostBackground =
+              activeBackground = `\x1b[${params.slice(start, p + 1).join(";")}m`;
           }
         }
       }
@@ -254,13 +286,16 @@ export function highlightCells(text: string, from: number, to: number): string {
     for (const { segment } of segmenter.segment(text.slice(i, limit))) {
       const cells = visibleWidth(segment);
       const selected = column < to && column + cells > from;
-      setInverse(selected || hostInverse);
+      if (background !== undefined)
+        setBackground(selected ? background : hostBackground);
+      else setInverse(selected || hostInverse);
       result += segment;
       column += cells;
     }
     i = limit;
   }
-  // Keep the host's final inverse state; do not leak our selection into borders.
-  setInverse(hostInverse);
+  // Restore the host's final state; do not leak selection into borders.
+  if (background !== undefined) setBackground(hostBackground);
+  else setInverse(hostInverse);
   return result;
 }

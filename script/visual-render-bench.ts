@@ -1,6 +1,6 @@
 /** Render replay; run with PIVIM_ENTRY=/path/to/baseline/index.ts for comparison. */
 
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { Theme } from "@earendil-works/pi-coding-agent";
@@ -15,6 +15,9 @@ const entry = resolve(process.env.PIVIM_ENTRY ?? "index.ts");
 const { ModalEditor } = (await import(
   pathToFileURL(entry).href
 )) as typeof import("../index.js");
+const { buildModeColorizers, resolveModeColors } = (await import(
+  pathToFileURL(resolve(dirname(entry), "mode-colors.ts")).href
+)) as typeof import("../mode-colors.js");
 const iterations = 120;
 const rounds = 11;
 let consumed = 0;
@@ -87,9 +90,15 @@ const fixtures: Fixture[] = [
 ];
 
 const selectionTheme = new Theme(
-  { muted: "", text: "", thinkingXhigh: "" } as ConstructorParameters<
-    typeof Theme
-  >[0],
+  {
+    muted: "#908caa",
+    text: "#e0def4",
+    thinkingXhigh: "#eb6f92",
+    borderMuted: "#26233a",
+    borderAccent: "#c4a7e7",
+    customMessageLabel: "#9ccfd8",
+    warning: "#f6c177",
+  } as ConstructorParameters<typeof Theme>[0],
   { selectedBg: "#2a2d35" } as ConstructorParameters<typeof Theme>[1],
   "truecolor",
 );
@@ -97,6 +106,11 @@ const selectionTheme = new Theme(
 function createEditor(fixture: Fixture) {
   const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings, {
     selectionBackground: (s) => selectionTheme.bg("selectedBg", s),
+    labelColorizers: buildModeColorizers(
+      selectionTheme,
+      resolveModeColors(),
+      (s) => `\x1b[7m${s}\x1b[27m`,
+    ),
   });
   editor.setClipboardMirrorPolicy("never");
   editor.setClipboardFn(() => {});

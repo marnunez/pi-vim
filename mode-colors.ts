@@ -1,7 +1,9 @@
 import type { ModeColorSettings } from "./settings.js";
 
 const MODE_COLORS = {
-  insert: "borderMuted",
+  // Borders may be nearly background-coloured; the inverse label needs a
+  // readable text token instead of that intentionally faint border colour.
+  insert: "muted",
   normal: "borderAccent",
   visual: "customMessageLabel",
   ex: "warning",

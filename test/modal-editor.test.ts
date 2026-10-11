@@ -2539,7 +2539,7 @@ describe("mode color settings", () => {
 
       assert.deepEqual(
         theme.fgCalls.map((call) => call.token),
-        ["borderMuted", "borderAccent", "warning"],
+        ["muted", "borderAccent", "warning"],
       );
     } finally {
       restore();
@@ -2670,7 +2670,7 @@ describe("mode color settings", () => {
       editor.render(80);
 
       assert.deepEqual(theme.fgCalls, [
-        { token: "borderMuted", text: reverseInsertLabel },
+        { token: "muted", text: reverseInsertLabel },
       ]);
     } finally {
       restore();

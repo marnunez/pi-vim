@@ -53,3 +53,23 @@ Pi's regular renderer ends synchronized output before repositioning the hardware
 - Extension lifecycle tests mount immediately, recreate on the same or another terminal, shut down, and observe original writer/hardware-setting restoration and unmodified subsequent frames.
 
 Real-terminal smoke and human contrast acceptance are recorded separately in the local maintainer runbook, `~/.local/share/pi-vim/maintainer-qa.md`. Simulated cursor visibility does not establish how every terminal emulator paints a frame.
+
+## INSERT label contrast follow-up
+
+The next patch changes only the default INSERT colour token, `borderMuted` → `muted`. Some themes deliberately make `borderMuted` almost background-coloured; reverse video then puts dark text on that dark badge. Focused tests with two dark palettes observe the native Pi foreground ANSI, reproduce the old contrast below 1.5:1, and require the new badge contrast to exceed 4.5:1 when the terminal background matches the theme base. Explicit colour overrides are preserved. This is a UI colour policy, not a Vim semantic change.
+
+The render replay now includes native theme mode-label colourizers and resolves their defaults from each entry's own checkout. Baseline `014c788` and the fixed checkout therefore both exercise real label painting, including the changed token. Before → after median/p95 (microseconds per frame):
+
+| Fixture | Before median | After median | Before p95 | After p95 |
+| --- | ---: | ---: | ---: | ---: |
+| Normal short | 5.10 | 4.86 | 6.76 | 6.02 |
+| Insert long | 401.02 | 406.34 | 405.76 | 431.76 |
+| Visual short | 21.20 | 20.38 | 24.25 | 22.88 |
+| Visual endpoint movement | 21.14 | 22.94 | 26.06 | 24.84 |
+| Visual long/wrapped | 507.75 | 517.56 | 595.41 | 535.38 |
+| Visual resizing | 502.33 | 504.51 | 509.43 | 528.13 |
+| Visual Unicode/wrapped | 252.44 | 252.05 | 259.16 | 254.02 |
+| V-LINE scrolling | 117.55 | 119.63 | 198.65 | 193.14 |
+| Visual collapsed paste | 25.87 | 20.65 | 31.91 | 29.92 |
+
+No render algorithm, cursor guard or selection geometry changed. Differences are ordinary replay variation; the colour change is not a speed-up or a general contrast guarantee for arbitrary custom themes and terminal backgrounds.
